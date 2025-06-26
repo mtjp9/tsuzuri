@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/tsuzuri",
+  # "crates/tsuzuri-dynamodb",
+  # "crates/tsuzuri-libsql",
+]
+
+[workspace.metadata.spellcheck]
+config = "spellcheck.toml"
+
+[workspace.package]
+version = "0.1.0"
+authors = [
+  "Yuki Tanaka <matakitanakajp@gmail.com>",
+  "Yuki Tanaka <y-tanaka@ohmylike.jp>",
+]
+description = "Tsuzuri is a  Event Sourcing framework for Rust, designed to be simple and easy to use."
+repository = "https://github.com/mtjp9/tsuzuri"
+homepage = "https://github.com/mtjp9/tsuzuri"
+readme = "README.md"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+tsuzuri = { version = "0.1.0", path = "crates/tsuzuri" }
+thiserror = { version = "2.0.12" }
+serde = { version = "1.0", features = ["derive"] }
+ulid = { version = "1.1", features = ["serde"] }
