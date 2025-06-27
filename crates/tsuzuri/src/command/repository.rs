@@ -177,7 +177,7 @@ where
             }
             Err(err) => {
                 return Err(PersistenceError::UnknownError(
-                    format!("Failed to get snapshot for aggregate {}: {}", id, err).into(),
+                    format!("Failed to get snapshot for aggregate {id}: {err}").into(),
                 ))
             }
         };
@@ -197,7 +197,7 @@ where
             })
             .await
             .map_err(|err| {
-                PersistenceError::UnknownError(format!("Failed to replay events for aggregate {}: {}", id, err).into())
+                PersistenceError::UnknownError(format!("Failed to replay events for aggregate {id}: {err}").into())
             })?;
 
         Ok(ctx)

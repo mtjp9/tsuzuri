@@ -499,7 +499,7 @@ mod tests {
             let mut all_events = Vec::new();
             for i in 1..=12 {
                 all_events.push(SerializedDomainEvent::new(
-                    format!("evt-{}", i),
+                    format!("evt-{i}"),
                     "test-agg-1".to_string(),
                     i,
                     "TestAggregate".to_string(),
