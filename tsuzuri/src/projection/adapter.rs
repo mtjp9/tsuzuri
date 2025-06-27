@@ -46,7 +46,7 @@ mod tests {
 
     impl DomainEvent for TestEvent {
         fn id(&self) -> EventIdType {
-            self.id.clone()
+            self.id
         }
 
         fn event_type(&self) -> &'static str {
