@@ -34,3 +34,7 @@ Cargo.lock
 
 **/.env
 **/.env.*
+
+.vscode
+
+.rustfmt.toml

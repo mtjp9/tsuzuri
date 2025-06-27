@@ -1,0 +1,20 @@
+[package]
+name = "tsuzuri-dynamodb"
+version = "0.1.0"
+categories = ["cqrs", "event-sourcing", "dynamodb"]
+keywords = ["dynamodb", "aws", "database"]
+authors = [
+  "Yuki Tanaka <matakitanakajp@gmail.com>",
+  "Yuki Tanaka <y-tanaka@ohmylike.jp>",
+]
+description = "DynamoDB integration for Tsuzuri"
+repository = "https://github.com/mtjp9/tsuzuri"
+homepage = "https://github.com/mtjp9/tsuzuri"
+readme = "README.md"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = { workspace = true }
+
+[dependencies]
+
+[dev-dependencies]
