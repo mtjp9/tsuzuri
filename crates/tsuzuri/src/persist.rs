@@ -37,9 +37,7 @@ impl From<serde_json::Error> for PersistenceError {
             serde_json::error::Category::Data | serde_json::error::Category::Syntax => {
                 Self::DeserializationError(Box::new(err))
             }
-            serde_json::error::Category::Io | serde_json::error::Category::Eof => {
-                Self::UnknownError(Box::new(err))
-            }
+            serde_json::error::Category::Io | serde_json::error::Category::Eof => Self::UnknownError(Box::new(err)),
         }
     }
 }
@@ -50,9 +48,7 @@ impl<T: error::Error> From<serde_json::error::Error> for AggregateError<T> {
             serde_json::error::Category::Data | serde_json::error::Category::Syntax => {
                 Self::DeserializationError(Box::new(err))
             }
-            serde_json::error::Category::Io | serde_json::error::Category::Eof => {
-                Self::UnexpectedError(Box::new(err))
-            }
+            serde_json::error::Category::Io | serde_json::error::Category::Eof => Self::UnexpectedError(Box::new(err)),
         }
     }
 }
@@ -65,13 +61,11 @@ impl<T: error::Error> From<serde_json::error::Error> for AggregateError<T> {
 impl From<serde::SerdeError> for PersistenceError {
     fn from(err: serde::SerdeError) -> Self {
         match err {
-            serde::SerdeError::ConversionError(msg) => Self::DeserializationError(Box::new(
-                std::io::Error::new(std::io::ErrorKind::InvalidData, msg),
-            )),
-            serde::SerdeError::JsonError(err) => Self::DeserializationError(Box::new(err)),
-            serde::SerdeError::ProtobufDeserializationError(err) => {
-                Self::DeserializationError(Box::new(err))
+            serde::SerdeError::ConversionError(msg) => {
+                Self::DeserializationError(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, msg)))
             }
+            serde::SerdeError::JsonError(err) => Self::DeserializationError(Box::new(err)),
+            serde::SerdeError::ProtobufDeserializationError(err) => Self::DeserializationError(Box::new(err)),
         }
     }
 }
@@ -79,13 +73,11 @@ impl From<serde::SerdeError> for PersistenceError {
 impl<T: error::Error> From<serde::SerdeError> for AggregateError<T> {
     fn from(err: serde::SerdeError) -> Self {
         match err {
-            serde::SerdeError::ConversionError(msg) => Self::DeserializationError(Box::new(
-                std::io::Error::new(std::io::ErrorKind::InvalidData, msg),
-            )),
-            serde::SerdeError::JsonError(err) => Self::DeserializationError(Box::new(err)),
-            serde::SerdeError::ProtobufDeserializationError(err) => {
-                Self::DeserializationError(Box::new(err))
+            serde::SerdeError::ConversionError(msg) => {
+                Self::DeserializationError(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, msg)))
             }
+            serde::SerdeError::JsonError(err) => Self::DeserializationError(Box::new(err)),
+            serde::SerdeError::ProtobufDeserializationError(err) => Self::DeserializationError(Box::new(err)),
         }
     }
 }

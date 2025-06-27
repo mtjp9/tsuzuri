@@ -780,7 +780,7 @@ mod tests {
         // Test OrderAggregate init
         let order_id = AggregateId::<OrderId>::new();
         let order = OrderAggregate::init(order_id);
-        
+
         assert_eq!(order.id, order_id);
         assert_eq!(order.total_amount, 0);
         assert_eq!(order.status, OrderStatus::Pending);
@@ -789,7 +789,7 @@ mod tests {
         // Test UserAggregate init
         let user_id = AggregateId::<UserId>::new();
         let user = UserAggregate::init(user_id);
-        
+
         assert_eq!(user.id, user_id);
         assert_eq!(user.name, "");
         assert_eq!(user.email, "");
