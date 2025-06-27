@@ -14,7 +14,7 @@ pub enum SerdeError {
 }
 
 pub trait Serializer<T>: Send + Sync {
-    fn serialize(&self, value: T) -> Result<Vec<u8>, SerdeError>;
+    fn serialize(&self, value: &T) -> Result<Vec<u8>, SerdeError>;
 }
 
 pub trait Deserializer<T>: Send + Sync {
@@ -54,17 +54,18 @@ where
 
 impl<In, Out, S> Serializer<In> for Convert<In, Out, S>
 where
-    In: TryFrom<Out> + Send + Sync,
+    In: TryFrom<Out> + Clone + Send + Sync,
     Out: TryFrom<In> + Send + Sync,
     <Out as TryFrom<In>>::Error: Display,
     S: Serde<Out> + Send + Sync,
 {
-    fn serialize(&self, value: In) -> Result<Vec<u8>, SerdeError> {
-        let out = value
+    fn serialize(&self, value: &In) -> Result<Vec<u8>, SerdeError> {
+        let out: Out = value
+            .clone()
             .try_into()
             .map_err(|err: <Out as TryFrom<In>>::Error| SerdeError::ConversionError(err.to_string()))?;
 
-        self.serde.serialize(out)
+        self.serde.serialize(&out)
     }
 }
 
@@ -104,8 +105,8 @@ where
     T: Serialize + Send + Sync,
     for<'d> T: Deserialize<'d>,
 {
-    fn serialize(&self, value: T) -> Result<Vec<u8>, SerdeError> {
-        Ok(serde_json::to_vec(&value)?)
+    fn serialize(&self, value: &T) -> Result<Vec<u8>, SerdeError> {
+        Ok(serde_json::to_vec(value)?)
     }
 }
 
@@ -128,7 +129,7 @@ impl<T> Serializer<T> for Protobuf<T>
 where
     T: prost::Message + Default,
 {
-    fn serialize(&self, value: T) -> Result<Vec<u8>, SerdeError> {
+    fn serialize(&self, value: &T) -> Result<Vec<u8>, SerdeError> {
         Ok(value.encode_to_vec())
     }
 }
@@ -154,7 +155,7 @@ where
     T: prost::Message + Serialize + Default,
     for<'de> T: Deserialize<'de>,
 {
-    fn serialize(&self, value: T) -> Result<Vec<u8>, SerdeError> {
+    fn serialize(&self, value: &T) -> Result<Vec<u8>, SerdeError> {
         Json::<T>::default().serialize(value)
     }
 }

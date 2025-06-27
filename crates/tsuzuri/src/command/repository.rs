@@ -102,7 +102,7 @@ where
             seq_nr.saturating_add(1),
             aggregate_type.to_string(),
             event_type.to_string(),
-            self.domain_event_serde.serialize(domain_event.clone())?,
+            self.domain_event_serde.serialize(&domain_event)?,
             serde_json::to_value(event.metadata)?,
         );
         let serialized_integration_events = domain_event
@@ -114,7 +114,7 @@ where
                     aggregate_id.to_string(),
                     T::TYPE.to_string(),
                     integration_event.event_type().to_string(),
-                    self.integration_event_serde.serialize(integration_event)?,
+                    self.integration_event_serde.serialize(&integration_event)?,
                 ))
             })
             .collect::<Result<Vec<_>, PersistenceError>>()?;
@@ -124,10 +124,7 @@ where
     async fn prepare_snapshot_if_needed(
         &self,
         versioned_aggregate: &VersionedAggregate<T>,
-    ) -> Result<Option<PersistedSnapshot>, PersistenceError>
-    where
-        T: Clone,
-    {
+    ) -> Result<Option<PersistedSnapshot>, PersistenceError> {
         let aggregate = versioned_aggregate.aggregate();
         let version = versioned_aggregate.version();
         let seq_nr = versioned_aggregate.seq_nr();
@@ -141,7 +138,7 @@ where
             return Ok(None);
         }
 
-        let payload = self.aggregate_serde.serialize(aggregate.clone())?;
+        let payload = self.aggregate_serde.serialize(aggregate)?;
         let next_snapshot = version.saturating_add(1);
 
         Ok(Some(PersistedSnapshot::new(
@@ -207,30 +204,30 @@ where
     }
 }
 
-// #[async_trait]
-// impl<T, S, AggSerde, DEvtSerde, IEvtSerde> AggregateCommiter<T> for EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
-// where
-//     T: AggregateRoot,
-//     S: EventStore,
-//     AggSerde: Serde<T>,
-//     DEvtSerde: Serde<T::DomainEvent>,
-//     IEvtSerde: Serde<T::IntegrationEvent>,
-// {
-//     async fn commit(
-//         &self,
-//         versioned_aggregate: &VersionedAggregate<T>,
-//         event: Envelope<T::DomainEvent>,
-//     ) -> Result<(), PersistenceError> {
-//         let (serialized_domain_event, serialized_integration_events) =
-//             self.prepare_events(versioned_aggregate, event).await?;
-//         let serialized_snapshot = self.prepare_snapshot_if_needed(versioned_aggregate).await?;
-//         self.store
-//             .persist(
-//                 &[serialized_domain_event],
-//                 serialized_integration_events.as_ref(),
-//                 serialized_snapshot.as_ref(),
-//             )
-//             .await?;
-//         Ok(())
-//     }
-// }
+#[async_trait]
+impl<T, S, AggSerde, DEvtSerde, IEvtSerde> AggregateCommiter<T> for EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
+where
+    T: AggregateRoot,
+    S: EventStore,
+    AggSerde: Serde<T>,
+    DEvtSerde: Serde<T::DomainEvent>,
+    IEvtSerde: Serde<T::IntegrationEvent>,
+{
+    async fn commit(
+        &self,
+        versioned_aggregate: &VersionedAggregate<T>,
+        event: Envelope<T::DomainEvent>,
+    ) -> Result<(), PersistenceError> {
+        let (serialized_domain_event, serialized_integration_events) =
+            self.prepare_events(versioned_aggregate, event).await?;
+        let serialized_snapshot = self.prepare_snapshot_if_needed(versioned_aggregate).await?;
+        self.store
+            .persist(
+                &[serialized_domain_event],
+                serialized_integration_events.as_ref(),
+                serialized_snapshot.as_ref(),
+            )
+            .await?;
+        Ok(())
+    }
+}

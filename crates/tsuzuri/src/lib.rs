@@ -1,6 +1,6 @@
 mod aggregate;
 pub mod aggregate_id;
-mod command;
+pub mod command;
 mod domain_event;
 pub mod error;
 pub mod event;
@@ -16,7 +16,8 @@ pub mod version;
 mod versioned_aggregate;
 
 pub use aggregate::AggregateRoot;
-pub use command::Command;
+pub use command::repository::{AggregateCommiter, AggregateLoader, EventSourced, Repository};
+pub use command::{handler, repository, Command};
 pub use domain_event::DomainEvent;
 pub use event_id::EventId;
 pub use integration_event::{IntegrationEvent, IntoIntegrationEvents};

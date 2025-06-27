@@ -779,7 +779,7 @@ mod tests {
     fn test_aggregate_init() {
         // Test OrderAggregate init
         let order_id = AggregateId::<OrderId>::new();
-        let order = OrderAggregate::init(order_id.clone());
+        let order = OrderAggregate::init(order_id);
         
         assert_eq!(order.id, order_id);
         assert_eq!(order.total_amount, 0);
@@ -788,7 +788,7 @@ mod tests {
 
         // Test UserAggregate init
         let user_id = AggregateId::<UserId>::new();
-        let user = UserAggregate::init(user_id.clone());
+        let user = UserAggregate::init(user_id);
         
         assert_eq!(user.id, user_id);
         assert_eq!(user.name, "");
