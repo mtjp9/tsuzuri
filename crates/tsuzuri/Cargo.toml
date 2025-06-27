@@ -1,6 +1,6 @@
 [package]
 name = "tsuzuri"
-version = "0.1.0"
+version = "0.1.1"
 categories = ["cqrs", "event-sourcing"]
 keywords = ["event-sourcing", "cqrs", "framework"]
 authors = [
