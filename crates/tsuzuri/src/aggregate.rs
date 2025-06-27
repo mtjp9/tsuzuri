@@ -1,124 +1,321 @@
 use crate::{
-    aggregate_id::AggregateId, command::Command, domain_event::DomainEvent,
-    integration_event::IntegrationEvent,
+    aggregate_id::{AggregateId, HasIdPrefix},
+    command::Command,
+    domain_event::DomainEvent,
+    integration_event::{IntegrationEvent, IntoIntegrationEvents},
 };
 use std::fmt;
 
-pub trait Aggregate: fmt::Debug + Send + Sync + 'static {
-    type ID: AggregateId;
+/// Trait that aggregates must implement to provide their ID prefix
+/// and handle commands, domain events, and integration events.
+pub trait AggregateRoot: fmt::Debug + Send + Sync + 'static {
+    const TYPE: &'static str;
+    type ID: HasIdPrefix;
     type Command: Command;
-    type DomainEvent: DomainEvent;
+    type DomainEvent: DomainEvent + IntoIntegrationEvents<IntegrationEvent = Self::IntegrationEvent>;
     type IntegrationEvent: IntegrationEvent;
     type Error: std::error::Error;
 
+    /// Initializes a new aggregate with the given ID.
+    fn init(id: AggregateId<Self::ID>) -> Self;
+
     /// Returns the ID of the aggregate.
-    fn id(&self) -> &Self::ID;
+    fn id(&self) -> &AggregateId<Self::ID>;
 
     /// Handles a command and returns a domain event or an error.
     fn handle(&mut self, cmd: Self::Command) -> Result<Self::DomainEvent, Self::Error>;
 
     /// Applies changes to the aggregate's state.
-    fn apply(&mut self);
+    fn apply(&mut self, event: Self::DomainEvent);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aggregate_id::{IdType, TypedId};
+    use crate::{event_id::EventIdType, integration_event, message};
     use std::sync::Arc;
 
     // Test ID types
-    #[derive(Debug, Clone, PartialEq)]
-    struct OrderIdType;
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    struct UserId;
 
-    impl IdType for OrderIdType {
-        const PREFIX: &'static str = "ord";
-    }
-
-    type OrderId = TypedId<OrderIdType>;
-
-    #[derive(Debug, Clone, PartialEq)]
-    struct UserIdType;
-
-    impl IdType for UserIdType {
+    impl HasIdPrefix for UserId {
         const PREFIX: &'static str = "usr";
     }
 
-    type UserId = TypedId<UserIdType>;
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    struct OrderId;
+
+    impl HasIdPrefix for OrderId {
+        const PREFIX: &'static str = "ord";
+    }
 
     // Commands
     #[derive(Debug, Clone)]
     #[allow(dead_code)]
     enum OrderCommand {
-        Create { user_id: UserId, total_amount: u64 },
-        Confirm,
-        Ship,
-        Deliver,
+        Create {
+            id: AggregateId<OrderId>,
+            user_id: AggregateId<UserId>,
+            total_amount: u64,
+        },
+        Confirm {
+            id: AggregateId<OrderId>,
+        },
+        Ship {
+            id: AggregateId<OrderId>,
+        },
+        Deliver {
+            id: AggregateId<OrderId>,
+        },
     }
 
-    impl Command for OrderCommand {}
+    impl message::Message for OrderCommand {
+        fn name(&self) -> &'static str {
+            "OrderCommand"
+        }
+    }
+
+    impl Command for OrderCommand {
+        type ID = OrderId;
+
+        fn id(&self) -> &AggregateId<Self::ID> {
+            match self {
+                Self::Create { id, .. } => id,
+                Self::Confirm { id } => id,
+                Self::Ship { id } => id,
+                Self::Deliver { id } => id,
+            }
+        }
+    }
 
     #[derive(Debug, Clone)]
     #[allow(dead_code)]
     enum UserCommand {
-        Create { name: String, email: String },
-        UpdateEmail { email: String },
+        Create {
+            id: AggregateId<UserId>,
+            name: String,
+            email: String,
+        },
+        UpdateEmail {
+            id: AggregateId<UserId>,
+            email: String,
+        },
     }
 
-    impl Command for UserCommand {}
+    impl message::Message for UserCommand {
+        fn name(&self) -> &'static str {
+            "UserCommand"
+        }
+    }
+
+    impl Command for UserCommand {
+        type ID = UserId;
+
+        fn id(&self) -> &AggregateId<Self::ID> {
+            match self {
+                Self::Create { id, .. } => id,
+                Self::UpdateEmail { id, .. } => id,
+            }
+        }
+    }
 
     // Domain Events
     #[derive(Debug, Clone)]
     #[allow(dead_code)]
     enum OrderEvent {
-        Created { user_id: UserId, total_amount: u64 },
-        Confirmed,
-        Shipped,
-        Delivered,
+        Created {
+            id: EventIdType,
+            user_id: AggregateId<UserId>,
+            total_amount: u64,
+        },
+        Confirmed {
+            id: EventIdType,
+        },
+        Shipped {
+            id: EventIdType,
+        },
+        Delivered {
+            id: EventIdType,
+        },
     }
 
-    impl DomainEvent for OrderEvent {}
+    impl message::Message for OrderEvent {
+        fn name(&self) -> &'static str {
+            "OrderEvent"
+        }
+    }
+
+    impl DomainEvent for OrderEvent {
+        fn id(&self) -> EventIdType {
+            match self {
+                Self::Created { id, .. } => *id,
+                Self::Confirmed { id } => *id,
+                Self::Shipped { id } => *id,
+                Self::Delivered { id } => *id,
+            }
+        }
+
+        fn event_type(&self) -> &'static str {
+            match self {
+                Self::Created { .. } => "OrderCreated",
+                Self::Confirmed { .. } => "OrderConfirmed",
+                Self::Shipped { .. } => "OrderShipped",
+                Self::Delivered { .. } => "OrderDelivered",
+            }
+        }
+    }
+
+    impl integration_event::IntoIntegrationEvents for OrderEvent {
+        type IntegrationEvent = OrderIntegrationEvent;
+        type IntoIter = Vec<OrderIntegrationEvent>;
+
+        fn into_integration_events(self) -> Self::IntoIter {
+            match self {
+                OrderEvent::Created {
+                    user_id, total_amount, ..
+                } => {
+                    vec![OrderIntegrationEvent::OrderCreatedForNotification {
+                        order_id: AggregateId::<OrderId>::new(),
+                        user_id,
+                        total_amount,
+                    }]
+                }
+                OrderEvent::Shipped { .. } => {
+                    vec![OrderIntegrationEvent::OrderShippedForTracking {
+                        order_id: AggregateId::<OrderId>::new(),
+                        tracking_number: "TRACK123456".to_string(),
+                    }]
+                }
+                _ => vec![],
+            }
+        }
+    }
 
     #[derive(Debug, Clone)]
     #[allow(dead_code)]
     enum UserEvent {
         Created {
+            id: EventIdType,
             name: String,
             email: String,
         },
         EmailUpdated {
+            id: EventIdType,
             old_email: String,
             new_email: String,
         },
     }
 
-    impl DomainEvent for UserEvent {}
+    impl message::Message for UserEvent {
+        fn name(&self) -> &'static str {
+            "UserEvent"
+        }
+    }
+
+    impl DomainEvent for UserEvent {
+        fn id(&self) -> EventIdType {
+            match self {
+                Self::Created { id, .. } => *id,
+                Self::EmailUpdated { id, .. } => *id,
+            }
+        }
+
+        fn event_type(&self) -> &'static str {
+            match self {
+                Self::Created { .. } => "UserCreated",
+                Self::EmailUpdated { .. } => "UserEmailUpdated",
+            }
+        }
+    }
+
+    impl integration_event::IntoIntegrationEvents for UserEvent {
+        type IntegrationEvent = UserIntegrationEvent;
+        type IntoIter = Vec<UserIntegrationEvent>;
+
+        fn into_integration_events(self) -> Self::IntoIter {
+            match self {
+                UserEvent::Created { name: _, email, .. } => {
+                    vec![UserIntegrationEvent::UserRegisteredForWelcome {
+                        user_id: AggregateId::<UserId>::new(),
+                        email,
+                    }]
+                }
+                UserEvent::EmailUpdated { new_email, .. } => {
+                    vec![UserIntegrationEvent::EmailChangedForVerification {
+                        user_id: AggregateId::<UserId>::new(),
+                        new_email,
+                    }]
+                }
+            }
+        }
+    }
 
     // Integration Events
     #[derive(Debug, Clone)]
     #[allow(dead_code)]
     enum OrderIntegrationEvent {
         OrderCreatedForNotification {
-            order_id: OrderId,
-            user_id: UserId,
+            order_id: AggregateId<OrderId>,
+            user_id: AggregateId<UserId>,
             total_amount: u64,
         },
         OrderShippedForTracking {
-            order_id: OrderId,
+            order_id: AggregateId<OrderId>,
             tracking_number: String,
         },
     }
 
-    impl IntegrationEvent for OrderIntegrationEvent {}
+    impl message::Message for OrderIntegrationEvent {
+        fn name(&self) -> &'static str {
+            "OrderIntegrationEvent"
+        }
+    }
+
+    impl IntegrationEvent for OrderIntegrationEvent {
+        fn id(&self) -> String {
+            ulid::Ulid::new().to_string()
+        }
+
+        fn event_type(&self) -> &'static str {
+            match self {
+                Self::OrderCreatedForNotification { .. } => "order.created.for_notification",
+                Self::OrderShippedForTracking { .. } => "order.shipped.for_tracking",
+            }
+        }
+    }
 
     #[derive(Debug, Clone)]
     #[allow(dead_code)]
     enum UserIntegrationEvent {
-        UserRegisteredForWelcome { user_id: UserId, email: String },
-        EmailChangedForVerification { user_id: UserId, new_email: String },
+        UserRegisteredForWelcome {
+            user_id: AggregateId<UserId>,
+            email: String,
+        },
+        EmailChangedForVerification {
+            user_id: AggregateId<UserId>,
+            new_email: String,
+        },
     }
 
-    impl IntegrationEvent for UserIntegrationEvent {}
+    impl message::Message for UserIntegrationEvent {
+        fn name(&self) -> &'static str {
+            "UserIntegrationEvent"
+        }
+    }
+
+    impl IntegrationEvent for UserIntegrationEvent {
+        fn id(&self) -> String {
+            ulid::Ulid::new().to_string()
+        }
+
+        fn event_type(&self) -> &'static str {
+            match self {
+                Self::UserRegisteredForWelcome { .. } => "user.registered.for_welcome",
+                Self::EmailChangedForVerification { .. } => "email.changed.for_verification",
+            }
+        }
+    }
 
     // Errors
     #[derive(Debug, thiserror::Error)]
@@ -142,9 +339,9 @@ mod tests {
     // Test Aggregates
     #[derive(Debug)]
     #[allow(dead_code)]
-    struct Order {
-        id: OrderId,
-        user_id: UserId,
+    struct OrderAggregate {
+        id: AggregateId<OrderId>,
+        user_id: AggregateId<UserId>,
         total_amount: u64,
         status: OrderStatus,
     }
@@ -157,85 +354,130 @@ mod tests {
         Delivered,
     }
 
-    impl Aggregate for Order {
+    impl AggregateRoot for OrderAggregate {
+        const TYPE: &'static str = "Order";
         type ID = OrderId;
         type Command = OrderCommand;
         type DomainEvent = OrderEvent;
         type IntegrationEvent = OrderIntegrationEvent;
         type Error = OrderError;
 
-        fn id(&self) -> &Self::ID {
+        fn init(id: AggregateId<Self::ID>) -> Self {
+            Self {
+                id,
+                user_id: AggregateId::<UserId>::new(), // Default user ID
+                total_amount: 0,
+                status: OrderStatus::Pending,
+            }
+        }
+
+        fn id(&self) -> &AggregateId<Self::ID> {
             &self.id
         }
 
         fn handle(&mut self, cmd: Self::Command) -> Result<Self::DomainEvent, Self::Error> {
             match cmd {
                 OrderCommand::Create {
+                    id: _,
                     user_id,
                     total_amount,
                 } => Ok(OrderEvent::Created {
+                    id: EventIdType::new(),
                     user_id,
                     total_amount,
                 }),
-                OrderCommand::Confirm => {
+                OrderCommand::Confirm { id: _ } => {
                     if self.status != OrderStatus::Pending {
                         return Err(OrderError::InvalidStateTransition);
                     }
-                    Ok(OrderEvent::Confirmed)
+                    Ok(OrderEvent::Confirmed { id: EventIdType::new() })
                 }
-                OrderCommand::Ship => {
+                OrderCommand::Ship { id: _ } => {
                     if self.status != OrderStatus::Confirmed {
                         return Err(OrderError::InvalidStateTransition);
                     }
-                    Ok(OrderEvent::Shipped)
+                    Ok(OrderEvent::Shipped { id: EventIdType::new() })
                 }
-                OrderCommand::Deliver => {
+                OrderCommand::Deliver { id: _ } => {
                     if self.status != OrderStatus::Shipped {
                         return Err(OrderError::InvalidStateTransition);
                     }
-                    Ok(OrderEvent::Delivered)
+                    Ok(OrderEvent::Delivered { id: EventIdType::new() })
                 }
             }
         }
 
-        fn apply(&mut self) {
-            // In a real implementation, this would apply events to update state
+        fn apply(&mut self, event: Self::DomainEvent) {
+            match event {
+                OrderEvent::Created {
+                    id: _,
+                    user_id,
+                    total_amount,
+                } => {
+                    self.user_id = user_id;
+                    self.total_amount = total_amount;
+                    self.status = OrderStatus::Pending;
+                }
+                OrderEvent::Confirmed { id: _ } => {
+                    self.status = OrderStatus::Confirmed;
+                }
+                OrderEvent::Shipped { id: _ } => {
+                    self.status = OrderStatus::Shipped;
+                }
+                OrderEvent::Delivered { id: _ } => {
+                    self.status = OrderStatus::Delivered;
+                }
+            }
         }
     }
 
     #[derive(Debug)]
     #[allow(dead_code)]
-    struct User {
-        id: UserId,
+    struct UserAggregate {
+        id: AggregateId<UserId>,
         name: String,
         email: String,
     }
 
-    impl Aggregate for User {
+    impl AggregateRoot for UserAggregate {
+        const TYPE: &'static str = "User";
         type ID = UserId;
         type Command = UserCommand;
         type DomainEvent = UserEvent;
         type IntegrationEvent = UserIntegrationEvent;
         type Error = UserError;
 
-        fn id(&self) -> &Self::ID {
+        fn init(id: AggregateId<Self::ID>) -> Self {
+            Self {
+                id,
+                name: String::new(),
+                email: String::new(),
+            }
+        }
+
+        fn id(&self) -> &AggregateId<Self::ID> {
             &self.id
         }
 
         fn handle(&mut self, cmd: Self::Command) -> Result<Self::DomainEvent, Self::Error> {
             match cmd {
-                UserCommand::Create { name, email } => {
+                UserCommand::Create { id: _, name, email } => {
                     if !email.contains('@') {
                         return Err(UserError::InvalidEmail);
                     }
-                    Ok(UserEvent::Created { name, email })
+                    Ok(UserEvent::Created {
+                        id: EventIdType::new(),
+                        name,
+                        email,
+                    })
                 }
-                UserCommand::UpdateEmail { email } => {
+                UserCommand::UpdateEmail { id: _, email } => {
                     if !email.contains('@') {
                         return Err(UserError::InvalidEmail);
                     }
                     let old_email = self.email.clone();
                     Ok(UserEvent::EmailUpdated {
+                        id: EventIdType::new(),
                         old_email,
                         new_email: email,
                     })
@@ -243,16 +485,28 @@ mod tests {
             }
         }
 
-        fn apply(&mut self) {
-            // In a real implementation, this would apply events to update state
+        fn apply(&mut self, event: Self::DomainEvent) {
+            match event {
+                UserEvent::Created { id: _, name, email } => {
+                    self.name = name;
+                    self.email = email;
+                }
+                UserEvent::EmailUpdated {
+                    id: _,
+                    old_email: _,
+                    new_email,
+                } => {
+                    self.email = new_email;
+                }
+            }
         }
     }
 
     #[test]
     fn test_aggregate_id_access() {
-        let order = Order {
-            id: OrderId::new(),
-            user_id: UserId::new(),
+        let order = OrderAggregate {
+            id: AggregateId::<OrderId>::new(),
+            user_id: AggregateId::<UserId>::new(),
             total_amount: 10000,
             status: OrderStatus::Pending,
         };
@@ -263,15 +517,15 @@ mod tests {
 
     #[test]
     fn test_different_aggregate_types() {
-        let order = Order {
-            id: OrderId::new(),
-            user_id: UserId::new(),
+        let order = OrderAggregate {
+            id: AggregateId::<OrderId>::new(),
+            user_id: AggregateId::<UserId>::new(),
             total_amount: 5000,
             status: OrderStatus::Confirmed,
         };
 
-        let user = User {
-            id: UserId::new(),
+        let user = UserAggregate {
+            id: AggregateId::<UserId>::new(),
             name: "Test User".to_string(),
             email: "test@example.com".to_string(),
         };
@@ -285,23 +539,23 @@ mod tests {
     fn test_aggregate_send_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
 
-        assert_send_sync::<Order>();
-        assert_send_sync::<User>();
+        assert_send_sync::<OrderAggregate>();
+        assert_send_sync::<UserAggregate>();
     }
 
     #[test]
     fn test_aggregate_static_lifetime() {
         fn assert_static<T: 'static>() {}
 
-        assert_static::<Order>();
-        assert_static::<User>();
+        assert_static::<OrderAggregate>();
+        assert_static::<UserAggregate>();
     }
 
     #[test]
     fn test_aggregate_in_arc() {
-        let order = Arc::new(Order {
-            id: OrderId::new(),
-            user_id: UserId::new(),
+        let order = Arc::new(OrderAggregate {
+            id: AggregateId::<OrderId>::new(),
+            user_id: AggregateId::<UserId>::new(),
             total_amount: 15000,
             status: OrderStatus::Shipped,
         });
@@ -312,9 +566,9 @@ mod tests {
 
     #[test]
     fn test_aggregate_with_state_changes() {
-        let mut order = Order {
-            id: OrderId::new(),
-            user_id: UserId::new(),
+        let mut order = OrderAggregate {
+            id: AggregateId::<OrderId>::new(),
+            user_id: AggregateId::<UserId>::new(),
             total_amount: 20000,
             status: OrderStatus::Pending,
         };
@@ -338,11 +592,11 @@ mod tests {
         use std::collections::HashMap;
 
         // Simulate a simple repository
-        struct Repository<A: Aggregate> {
+        struct Repository<A: AggregateRoot> {
             storage: HashMap<String, A>,
         }
 
-        impl<A: Aggregate> Repository<A> {
+        impl<A: AggregateRoot> Repository<A> {
             fn new() -> Self {
                 Self {
                     storage: HashMap::new(),
@@ -359,10 +613,10 @@ mod tests {
             }
         }
 
-        let mut order_repo = Repository::<Order>::new();
-        let order = Order {
-            id: OrderId::new(),
-            user_id: UserId::new(),
+        let mut order_repo = Repository::<OrderAggregate>::new();
+        let order = OrderAggregate {
+            id: AggregateId::<OrderId>::new(),
+            user_id: AggregateId::<UserId>::new(),
             total_amount: 30000,
             status: OrderStatus::Pending,
         };
@@ -377,43 +631,45 @@ mod tests {
 
     #[test]
     fn test_order_command_handling() {
-        let mut order = Order {
-            id: OrderId::new(),
-            user_id: UserId::new(),
+        let mut order = OrderAggregate {
+            id: AggregateId::<OrderId>::new(),
+            user_id: AggregateId::<UserId>::new(),
             total_amount: 25000,
             status: OrderStatus::Pending,
         };
 
         // Test confirm command
-        let result = order.handle(OrderCommand::Confirm);
+        let result = order.handle(OrderCommand::Confirm { id: order.id });
         assert!(result.is_ok());
         order.status = OrderStatus::Confirmed; // Simulate applying event
 
         // Test ship command
-        let result = order.handle(OrderCommand::Ship);
+        let result = order.handle(OrderCommand::Ship { id: order.id });
         assert!(result.is_ok());
         order.status = OrderStatus::Shipped; // Simulate applying event
 
         // Test invalid state transition
-        let result = order.handle(OrderCommand::Confirm);
+        let result = order.handle(OrderCommand::Confirm { id: order.id });
         assert!(result.is_err());
     }
 
     #[test]
     fn test_user_command_handling() {
-        let mut user = User {
-            id: UserId::new(),
+        let mut user = UserAggregate {
+            id: AggregateId::<UserId>::new(),
             name: "John Doe".to_string(),
             email: "john@example.com".to_string(),
         };
 
         // Test valid email update
         let result = user.handle(UserCommand::UpdateEmail {
+            id: user.id,
             email: "john.doe@example.com".to_string(),
         });
         assert!(result.is_ok());
         match result.unwrap() {
             UserEvent::EmailUpdated {
+                id: _,
                 old_email,
                 new_email,
             } => {
@@ -425,6 +681,7 @@ mod tests {
 
         // Test invalid email
         let result = user.handle(UserCommand::UpdateEmail {
+            id: user.id,
             email: "invalid-email".to_string(),
         });
         assert!(result.is_err());
@@ -447,12 +704,12 @@ mod tests {
     #[test]
     fn test_integration_event_creation() {
         // Test Order integration events
-        let order_id = OrderId::new();
-        let user_id = UserId::new();
+        let order_id = AggregateId::<OrderId>::new();
+        let user_id = AggregateId::<UserId>::new();
 
         let order_created_event = OrderIntegrationEvent::OrderCreatedForNotification {
-            order_id: order_id.clone(),
-            user_id: user_id.clone(),
+            order_id,
+            user_id,
             total_amount: 50000,
         };
 
@@ -470,19 +727,16 @@ mod tests {
         }
 
         // Test User integration events
-        let user_id = UserId::new();
+        let user_id = AggregateId::<UserId>::new();
         let email = "test@example.com".to_string();
 
         let user_registered_event = UserIntegrationEvent::UserRegisteredForWelcome {
-            user_id: user_id.clone(),
+            user_id,
             email: email.clone(),
         };
 
         match user_registered_event {
-            UserIntegrationEvent::UserRegisteredForWelcome {
-                user_id: uid,
-                email: e,
-            } => {
+            UserIntegrationEvent::UserRegisteredForWelcome { user_id: uid, email: e } => {
                 assert_eq!(uid, user_id);
                 assert_eq!(e, email);
             }
@@ -493,31 +747,110 @@ mod tests {
     #[test]
     fn test_integration_event_flow() {
         // Simulate a complete flow with domain and integration events
-        let order_id = OrderId::new();
-        let _user_id = UserId::new();
+        let order_id = AggregateId::<OrderId>::new();
+        let _user_id = AggregateId::<UserId>::new();
 
         // Domain event
-        let domain_event = OrderEvent::Shipped;
+        let domain_event = OrderEvent::Shipped { id: EventIdType::new() };
 
         // Corresponding integration event
         let integration_event = OrderIntegrationEvent::OrderShippedForTracking {
-            order_id: order_id.clone(),
+            order_id,
             tracking_number: "TRACK123456".to_string(),
         };
 
         // Verify they can coexist in the same context
         match (&domain_event, &integration_event) {
             (
-                OrderEvent::Shipped,
+                OrderEvent::Shipped { id: _ },
                 OrderIntegrationEvent::OrderShippedForTracking {
                     order_id: oid,
                     tracking_number,
                 },
             ) => {
-                assert_eq!(*oid, order_id);
+                assert_eq!(oid, &order_id);
                 assert_eq!(tracking_number, "TRACK123456");
             }
             _ => panic!("Unexpected event combination"),
         }
+    }
+
+    #[test]
+    fn test_aggregate_init() {
+        // Test OrderAggregate init
+        let order_id = AggregateId::<OrderId>::new();
+        let order = OrderAggregate::init(order_id.clone());
+        
+        assert_eq!(order.id, order_id);
+        assert_eq!(order.total_amount, 0);
+        assert_eq!(order.status, OrderStatus::Pending);
+        assert!(order.user_id.to_string().starts_with("usr-"));
+
+        // Test UserAggregate init
+        let user_id = AggregateId::<UserId>::new();
+        let user = UserAggregate::init(user_id.clone());
+        
+        assert_eq!(user.id, user_id);
+        assert_eq!(user.name, "");
+        assert_eq!(user.email, "");
+    }
+
+    #[test]
+    fn test_apply_method() {
+        // Test OrderAggregate apply
+        let mut order = OrderAggregate {
+            id: AggregateId::<OrderId>::new(),
+            user_id: AggregateId::<UserId>::new(),
+            total_amount: 0,
+            status: OrderStatus::Pending,
+        };
+
+        // Apply Created event
+        let user_id = AggregateId::<UserId>::new();
+        order.apply(OrderEvent::Created {
+            id: EventIdType::new(),
+            user_id,
+            total_amount: 10000,
+        });
+        assert_eq!(order.user_id, user_id);
+        assert_eq!(order.total_amount, 10000);
+        assert_eq!(order.status, OrderStatus::Pending);
+
+        // Apply Confirmed event
+        order.apply(OrderEvent::Confirmed { id: EventIdType::new() });
+        assert_eq!(order.status, OrderStatus::Confirmed);
+
+        // Apply Shipped event
+        order.apply(OrderEvent::Shipped { id: EventIdType::new() });
+        assert_eq!(order.status, OrderStatus::Shipped);
+
+        // Apply Delivered event
+        order.apply(OrderEvent::Delivered { id: EventIdType::new() });
+        assert_eq!(order.status, OrderStatus::Delivered);
+
+        // Test UserAggregate apply
+        let mut user = UserAggregate {
+            id: AggregateId::<UserId>::new(),
+            name: String::new(),
+            email: String::new(),
+        };
+
+        // Apply Created event
+        user.apply(UserEvent::Created {
+            id: EventIdType::new(),
+            name: "John Doe".to_string(),
+            email: "john@example.com".to_string(),
+        });
+        assert_eq!(user.name, "John Doe");
+        assert_eq!(user.email, "john@example.com");
+
+        // Apply EmailUpdated event
+        user.apply(UserEvent::EmailUpdated {
+            id: EventIdType::new(),
+            old_email: "john@example.com".to_string(),
+            new_email: "john.doe@example.com".to_string(),
+        });
+        assert_eq!(user.email, "john.doe@example.com");
+        assert_eq!(user.name, "John Doe"); // Name should remain unchanged
     }
 }

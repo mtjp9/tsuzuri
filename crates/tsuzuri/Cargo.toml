@@ -1,18 +1,25 @@
 [package]
 name = "tsuzuri"
-
-version.workspace = true
-authors.workspace = true
-description.workspace = true
-homepage.workspace = true
-readme.workspace = true
-edition.workspace = true
-license.workspace = true
+version = "0.1.0"
+categories = ["cqrs", "event-sourcing"]
+keywords = ["event-sourcing", "cqrs", "framework"]
+authors = [
+  "Yuki Tanaka <matakitanakajp@gmail.com>",
+  "Yuki Tanaka <y-tanaka@ohmylike.jp>",
+]
+description = "Tsuzuri is a  Event Sourcing framework for Rust, designed to be simple and easy to use."
+repository = "https://github.com/mtjp9/tsuzuri"
+homepage = "https://github.com/mtjp9/tsuzuri"
+readme = "README.md"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = { workspace = true }
 
 [dependencies]
-serde = { workspace = true }
-ulid = { workspace = true }
-thiserror = { workspace = true }
-
-[dev-dependencies]
+futures = { version = "0.3.31" }
+async-trait = { version = "0.1.88" }
+thiserror = { version = "2.0.12" }
+serde = { version = "1.0", features = ["derive"] }
+ulid = { version = "1.1", features = ["serde"] }
+prost = { version = "0.14.1" }
 serde_json = "1.0"

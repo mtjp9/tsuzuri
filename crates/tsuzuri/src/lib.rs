@@ -1,6 +1,23 @@
-pub mod aggregate;
+mod aggregate;
 pub mod aggregate_id;
-pub mod command;
-pub mod domain_event;
+mod command;
+mod domain_event;
 pub mod error;
-pub mod integration_event;
+pub mod event;
+mod event_id;
+pub mod event_store;
+mod integration_event;
+pub mod message;
+pub mod persist;
+pub mod sequence_number;
+pub mod serde;
+pub mod snapshot;
+pub mod version;
+mod versioned_aggregate;
+
+pub use aggregate::AggregateRoot;
+pub use command::Command;
+pub use domain_event::DomainEvent;
+pub use event_id::EventId;
+pub use integration_event::{IntegrationEvent, IntoIntegrationEvents};
+pub use versioned_aggregate::VersionedAggregate;
