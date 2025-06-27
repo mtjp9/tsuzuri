@@ -1,7 +1,7 @@
 [package]
 name = "tsuzuri"
 version = "0.1.1"
-categories = ["cqrs", "event-sourcing"]
+categories = ["database", "data-structures", "development-tools"]
 keywords = ["event-sourcing", "cqrs", "framework"]
 authors = [
   "Yuki Tanaka <matakitanakajp@gmail.com>",
