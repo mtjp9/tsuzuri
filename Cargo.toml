@@ -1,10 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-  "crates/tsuzuri",
-  # "crates/tsuzuri-dynamodb",
-  # "crates/tsuzuri-libsql",
-]
+members = ["tsuzuri"]
 
 [workspace.metadata.spellcheck]
 config = "spellcheck.toml"
