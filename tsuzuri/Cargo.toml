@@ -16,6 +16,7 @@ license = "MIT OR Apache-2.0"
 rust-version = { workspace = true }
 
 [dependencies]
+tokio = { version = "1.45.1", features = ["full"] }
 futures = { version = "0.3.31" }
 async-trait = { version = "0.1.88" }
 thiserror = { version = "2.0.12" }
