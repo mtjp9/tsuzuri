@@ -121,7 +121,7 @@ impl DynamoDBConfigBuilder {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DynamoDB {
     client: Client,
     config: DynamoDBConfig,
