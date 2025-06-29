@@ -1,6 +1,6 @@
 [package]
 name = "tsuzuri"
-version = "0.1.23"
+version = "0.1.24"
 categories = ["database", "data-structures", "development-tools"]
 keywords = ["event-sourcing", "cqrs", "framework"]
 authors = [
