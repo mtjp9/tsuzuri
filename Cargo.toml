@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["tsuzuri"]
+members = ["tsuzuri", "tsuzuri-dynamodb"]
 
 [workspace.metadata.spellcheck]
 config = "spellcheck.toml"
