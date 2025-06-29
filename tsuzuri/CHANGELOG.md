@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.23] - 2025-06-29
+
+### Changed
+
+- **BREAKING**: Refactored `VersionedAggregate` to remove internal event accumulation
+  - Changed `handle()` method to return `Result<T::DomainEvent, T::Error>` instead of `Result<(), T::Error>`
+  - Removed `take_uncommitted_events()` method
+  - Removed `uncommitted_events` field from the struct
+  - Simplified `VersionedAggregate` to be a pure wrapper without event accumulation
+
 ## [0.1.22] - 2025-06-29
 
 ### Changed
