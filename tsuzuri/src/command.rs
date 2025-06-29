@@ -15,5 +15,5 @@ pub type Envelope<T> = message::Envelope<T>;
 pub trait Command: fmt::Debug + message::Message + Send + Sync + 'static {
     type ID: HasIdPrefix;
 
-    fn id(&self) -> &AggregateId<Self::ID>;
+    fn id(&self) -> AggregateId<Self::ID>;
 }

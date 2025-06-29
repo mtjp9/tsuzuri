@@ -55,9 +55,9 @@ impl Message for TestCommand {
 impl Command for TestCommand {
     type ID = TestId;
 
-    fn id(&self) -> &AggregateId<Self::ID> {
+    fn id(&self) -> AggregateId<Self::ID> {
         match self {
-            TestCommand::Create(cmd) => &cmd.id,
+            TestCommand::Create(cmd) => cmd.id.clone(),
             TestCommand::Update(_) => panic!("Update command doesn't have an ID"),
         }
     }

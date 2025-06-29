@@ -79,12 +79,12 @@ mod tests {
     impl Command for OrderCommand {
         type ID = OrderId;
 
-        fn id(&self) -> &AggregateId<Self::ID> {
+        fn id(&self) -> AggregateId<Self::ID> {
             match self {
-                Self::Create { id, .. } => id,
-                Self::Confirm { id } => id,
-                Self::Ship { id } => id,
-                Self::Deliver { id } => id,
+                Self::Create { id, .. } => id.clone(),
+                Self::Confirm { id } => id.clone(),
+                Self::Ship { id } => id.clone(),
+                Self::Deliver { id } => id.clone(),
             }
         }
     }
@@ -112,10 +112,10 @@ mod tests {
     impl Command for UserCommand {
         type ID = UserId;
 
-        fn id(&self) -> &AggregateId<Self::ID> {
+        fn id(&self) -> AggregateId<Self::ID> {
             match self {
-                Self::Create { id, .. } => id,
-                Self::UpdateEmail { id, .. } => id,
+                Self::Create { id, .. } => id.clone(),
+                Self::UpdateEmail { id, .. } => id.clone(),
             }
         }
     }

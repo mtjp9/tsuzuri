@@ -119,8 +119,8 @@ mod tests {
     impl Command for TestCommand {
         type ID = TestId;
 
-        fn id(&self) -> &AggregateId<Self::ID> {
-            &self.id
+        fn id(&self) -> AggregateId<Self::ID> {
+            self.id.clone()
         }
     }
 

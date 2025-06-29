@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.24] - 2025-06-29
+
+### Changed
+
+- **BREAKING**: Changed `Command` trait's `id()` method signature
+  - Now returns `AggregateId<Self::ID>` instead of `&AggregateId<Self::ID>`
+  - All implementations must be updated to return an owned value (typically by cloning)
+  - This change improves API ergonomics and consistency with other trait methods
+
 ## [0.1.23] - 2025-06-29
 
 ### Changed
