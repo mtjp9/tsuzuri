@@ -22,5 +22,5 @@ mod versioned_aggregate;
 pub use aggregate::AggregateRoot;
 pub use command::repository::{AggregateCommiter, AggregateLoader, EventSourced, Repository};
 pub use command::{handler, repository, Command};
-pub use event_id::EventId;
+pub use event_id::{EventId, EventIdType};
 pub use versioned_aggregate::VersionedAggregate;
