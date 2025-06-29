@@ -154,7 +154,7 @@ impl InvertedIndexCommiter for MemoryInvertedIndexStore {
         let mut indexes = self.indexes.write().unwrap();
         indexes
             .entry(keyword.to_string())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(aggregate_id.to_string());
         Ok(())
     }

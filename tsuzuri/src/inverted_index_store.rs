@@ -63,7 +63,7 @@ mod tests {
             let mut indexes = self.indexes.lock().unwrap();
             indexes
                 .entry(keyword.to_string())
-                .or_insert_with(HashSet::new)
+                .or_default()
                 .insert(aggregate_id.to_string());
             Ok(())
         }
@@ -197,7 +197,7 @@ mod tests {
 
         // Commit multiple aggregates with same keyword
         for i in 1..=5 {
-            store.commit(&format!("agg-{}", i), "tag:test").await.unwrap();
+            store.commit(&format!("agg-{i}"), "tag:test").await.unwrap();
         }
 
         // Verify all aggregates are returned
@@ -225,13 +225,13 @@ mod tests {
         // Concurrent commits
         let handle1 = tokio::spawn(async move {
             for i in 0..10 {
-                store_clone1.commit(&format!("agg-{}", i), "concurrent").await.unwrap();
+                store_clone1.commit(&format!("agg-{i}"), "concurrent").await.unwrap();
             }
         });
 
         let handle2 = tokio::spawn(async move {
             for i in 10..20 {
-                store_clone2.commit(&format!("agg-{}", i), "concurrent").await.unwrap();
+                store_clone2.commit(&format!("agg-{i}"), "concurrent").await.unwrap();
             }
         });
 
