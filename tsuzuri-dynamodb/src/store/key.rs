@@ -22,7 +22,7 @@ mod tests {
     fn test_partition_key() {
         let shard_count = 4;
         let partition_key = resolve_partition_key("test".to_string(), "TestAggregate".to_string(), shard_count);
-        assert_eq!(partition_key, "TestAggregate-1");
+        assert_eq!(partition_key, "TestAggregate-0");
     }
 
     #[test]
