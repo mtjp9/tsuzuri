@@ -101,9 +101,9 @@ mod tests {
 
         fn id(&self) -> AggregateId<Self::ID> {
             match self {
-                Self::DoSomething { id } => id.clone(),
-                Self::DoSomethingElse { id } => id.clone(),
-                Self::CausesError { id } => id.clone(),
+                Self::DoSomething { id } => *id,
+                Self::DoSomethingElse { id } => *id,
+                Self::CausesError { id } => *id,
             }
         }
     }

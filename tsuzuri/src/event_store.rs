@@ -120,7 +120,7 @@ mod tests {
         type ID = TestId;
 
         fn id(&self) -> AggregateId<Self::ID> {
-            self.id.clone()
+            self.id
         }
     }
 
