@@ -8,7 +8,6 @@ pub struct VersionedAggregate<T: AggregateRoot> {
     aggregate: T,
     version: Version,
     seq_nr: SequenceNumber,
-    uncommitted_events: Vec<T::DomainEvent>,
 }
 
 impl<T: AggregateRoot> VersionedAggregate<T> {
@@ -18,7 +17,6 @@ impl<T: AggregateRoot> VersionedAggregate<T> {
             aggregate,
             version,
             seq_nr,
-            uncommitted_events: Vec::new(),
         }
     }
 
@@ -46,18 +44,13 @@ impl<T: AggregateRoot> VersionedAggregate<T> {
         self.seq_nr = seq_nr;
     }
 
-    pub fn handle(&mut self, cmd: T::Command) -> Result<(), T::Error> {
+    pub fn handle(&mut self, cmd: T::Command) -> Result<T::DomainEvent, T::Error> {
         let event = self.aggregate.handle(cmd)?;
-        self.uncommitted_events.push(event);
-        Ok(())
+        Ok(event)
     }
 
     pub fn apply(&mut self, event: T::DomainEvent) {
         self.aggregate.apply(event);
-    }
-
-    pub fn take_uncommitted_events(&mut self) -> Vec<T::DomainEvent> {
-        std::mem::take(&mut self.uncommitted_events)
     }
 
     pub fn snapshot(&self) -> (&T, Version, SequenceNumber) {
@@ -249,7 +242,6 @@ mod tests {
         assert_eq!(versioned.aggregate.state, "initial");
         assert_eq!(versioned.version, 1);
         assert_eq!(versioned.seq_nr, 0);
-        assert!(versioned.uncommitted_events.is_empty());
     }
 
     #[test]
@@ -260,8 +252,8 @@ mod tests {
         let result = versioned.handle(cmd);
         assert!(result.is_ok());
 
-        // Event should be in uncommitted_events
-        assert_eq!(versioned.uncommitted_events.len(), 1);
+        let event = result.unwrap();
+        assert!(matches!(event, TestEvent::SomethingHappened { .. }));
 
         // Aggregate state should NOT be updated yet (apply not called in handle)
         assert_eq!(versioned.aggregate.state, "initial");
@@ -279,29 +271,24 @@ mod tests {
 
         // State should be updated
         assert_eq!(versioned.aggregate.state, "initial -> test data");
-
-        // No events should be added to uncommitted_events
-        assert!(versioned.uncommitted_events.is_empty());
     }
 
     #[test]
-    fn test_take_uncommitted_events() {
+    fn test_handle_multiple_commands() {
         let mut versioned = create_test_versioned_aggregate();
 
         // Handle multiple commands
         let cmd1 = TestCommand::DoSomething { id: *versioned.id() };
         let cmd2 = TestCommand::DoSomethingElse { id: *versioned.id() };
 
-        versioned.handle(cmd1).unwrap();
-        versioned.handle(cmd2).unwrap();
+        let event1 = versioned.handle(cmd1).unwrap();
+        let event2 = versioned.handle(cmd2).unwrap();
 
-        assert_eq!(versioned.uncommitted_events.len(), 2);
+        assert!(matches!(event1, TestEvent::SomethingHappened { .. }));
+        assert!(matches!(event2, TestEvent::SomethingElseHappened { .. }));
 
-        // Take events
-        let events = versioned.take_uncommitted_events();
-
-        assert_eq!(events.len(), 2);
-        assert!(versioned.uncommitted_events.is_empty());
+        // Aggregate state should still be initial (events not applied)
+        assert_eq!(versioned.aggregate.state, "initial");
     }
 
     #[test]
@@ -321,14 +308,13 @@ mod tests {
 
         let result = versioned.handle(cmd);
         assert!(result.is_err());
-
-        // No events should be added
-        assert!(versioned.uncommitted_events.is_empty());
+        assert!(matches!(result.unwrap_err(), TestError::SomethingWentWrong));
     }
 
     #[test]
     fn test_multiple_commands_sequence() {
         let mut versioned = create_test_versioned_aggregate();
+        let mut events = Vec::new();
 
         // Handle multiple commands successfully
         for i in 0..3 {
@@ -338,13 +324,13 @@ mod tests {
                 TestCommand::DoSomethingElse { id: *versioned.id() }
             };
 
-            versioned.handle(cmd).unwrap();
+            let event = versioned.handle(cmd).unwrap();
+            events.push(event);
         }
 
-        assert_eq!(versioned.uncommitted_events.len(), 3);
+        assert_eq!(events.len(), 3);
 
-        // Take events and verify they can be applied
-        let events = versioned.take_uncommitted_events();
+        // Apply events to verify they update the state correctly
         for event in events {
             versioned.apply(event);
         }
