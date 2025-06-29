@@ -1,4 +1,4 @@
-use crate::{message, DomainEvent};
+use crate::{domain_event::DomainEvent, message};
 use std::fmt;
 
 /// Marker trait for integration events that communicate changes to external systems.

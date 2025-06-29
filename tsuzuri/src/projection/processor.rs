@@ -1,7 +1,8 @@
 use crate::{
+    domain_event::DomainEvent,
     event::Envelope,
     projection::{adapter::Adapter, error::Result},
-    serde, DomainEvent,
+    serde,
 };
 use std::marker::PhantomData;
 

@@ -1,7 +1,8 @@
 use crate::{
     event::Envelope,
     integration::{adapter::Adapter, error::Result},
-    serde, IntegrationEvent,
+    integration_event::IntegrationEvent,
+    serde,
 };
 use std::marker::PhantomData;
 

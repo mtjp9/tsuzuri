@@ -1,4 +1,4 @@
-use crate::{event::Envelope, projection::error::Result, DomainEvent};
+use crate::{domain_event::DomainEvent, event::Envelope, projection::error::Result};
 use async_trait::async_trait;
 
 pub trait Adapter<E>: Projector<E> + Send + Sync + 'static

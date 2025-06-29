@@ -4,16 +4,22 @@ use crate::{
     event::{Envelope, SequenceSelect},
     event_store::EventStore,
     integration_event::{IntegrationEvent, IntoIntegrationEvents, SerializedIntegrationEvent},
+    inverted_index_store::InvertedIndexStore,
     persist::PersistenceError,
     serde::Serde,
     snapshot::PersistedSnapshot,
     AggregateRoot, VersionedAggregate,
 };
 use async_trait::async_trait;
-use futures::TryStreamExt;
+use futures::{
+    stream::{self, StreamExt},
+    TryStreamExt,
+};
 use std::marker::PhantomData;
+use tracing::warn;
 
-pub trait Repository<T>: AggregateLoader<T> + AggregateCommiter<T> + Send + Sync + 'static
+pub trait Repository<T>:
+    AggregateLoader<T> + AggregatesLoader<T> + AggregateCommiter<T> + Send + Sync + 'static
 where
     T: AggregateRoot,
 {
@@ -22,12 +28,12 @@ where
 impl<T, R> Repository<T> for R
 where
     T: AggregateRoot,
-    R: AggregateLoader<T> + AggregateCommiter<T> + Send + Sync + 'static,
+    R: AggregateLoader<T> + AggregatesLoader<T> + AggregateCommiter<T> + Send + Sync + 'static,
 {
 }
 
 #[async_trait]
-pub trait AggregateLoader<T>: Send + Sync
+pub trait AggregateLoader<T>: Send + Sync + 'static
 where
     T: AggregateRoot,
 {
@@ -35,7 +41,15 @@ where
 }
 
 #[async_trait]
-pub trait AggregateCommiter<T>: Send + Sync
+pub trait AggregatesLoader<T>: Send + Sync + 'static
+where
+    T: AggregateRoot,
+{
+    async fn load_aggregates(&self, keyword: &str) -> Result<Vec<VersionedAggregate<T>>, PersistenceError>;
+}
+
+#[async_trait]
+pub trait AggregateCommiter<T>: Send + Sync + 'static
 where
     T: AggregateRoot,
 {
@@ -50,7 +64,7 @@ where
 pub struct EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
 where
     T: AggregateRoot,
-    S: EventStore,
+    S: EventStore + InvertedIndexStore,
     AggSerde: Serde<T>,
     DEvtSerde: Serde<T::DomainEvent>,
     IEvtSerde: Serde<T::IntegrationEvent>,
@@ -60,12 +74,13 @@ where
     pub domain_event_serde: DEvtSerde,
     pub integration_event_serde: IEvtSerde,
     pub aggregate: PhantomData<T>,
+    pub concurrent_limit: usize,
 }
 
 impl<T, S, AggSerde, DEvtSerde, IEvtSerde> EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
 where
     T: AggregateRoot,
-    S: EventStore,
+    S: EventStore + InvertedIndexStore,
     AggSerde: Serde<T>,
     DEvtSerde: Serde<T::DomainEvent>,
     IEvtSerde: Serde<T::IntegrationEvent>,
@@ -82,7 +97,13 @@ where
             domain_event_serde,
             integration_event_serde,
             aggregate: PhantomData,
+            concurrent_limit: 10,
         }
+    }
+
+    pub fn with_concurrent_limit(mut self, limit: usize) -> Self {
+        self.concurrent_limit = limit;
+        self
     }
 
     async fn prepare_events(
@@ -155,26 +176,19 @@ where
 impl<T, S, AggSerde, DEvtSerde, IEvtSerde> AggregateLoader<T> for EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
 where
     T: AggregateRoot,
-    S: EventStore,
-    AggSerde: Serde<T>,
-    DEvtSerde: Serde<T::DomainEvent>,
-    IEvtSerde: Serde<T::IntegrationEvent>,
+    S: EventStore + InvertedIndexStore,
+    AggSerde: Serde<T> + 'static,
+    DEvtSerde: Serde<T::DomainEvent> + 'static,
+    IEvtSerde: Serde<T::IntegrationEvent> + 'static,
 {
     async fn load_aggregate(&self, id: &AggregateId<T::ID>) -> Result<VersionedAggregate<T>, PersistenceError> {
-        // スナップショットまたは初期Aggregateを取得
         let (aggregate, version, seq_nr) = match self.store.get_snapshot::<T>(&id.to_string()).await {
-            Ok(Some(snapshot)) => {
-                // 既存のスナップショットから復元
-                (
-                    self.aggregate_serde.deserialize(&snapshot.aggregate)?,
-                    snapshot.version,
-                    snapshot.seq_nr,
-                )
-            }
-            Ok(None) => {
-                // 新規Aggregateを作成（スナップショットなし）
-                (T::init(id.clone()), 0, 0)
-            }
+            Ok(Some(snapshot)) => (
+                self.aggregate_serde.deserialize(&snapshot.aggregate)?,
+                snapshot.version,
+                snapshot.seq_nr,
+            ),
+            Ok(None) => (T::init(id.clone()), 0, 0),
             Err(err) => {
                 return Err(PersistenceError::UnknownError(
                     format!("Failed to get snapshot for aggregate {id}: {err}").into(),
@@ -182,10 +196,8 @@ where
             }
         };
 
-        // VersionedAggregateを作成
         let versioned_aggregate = VersionedAggregate::from_snapshot(aggregate, version, seq_nr);
 
-        // イベントストリームから最新状態まで再生
         let ctx = self
             .store
             .stream_events::<T>(&id.to_string(), SequenceSelect::From(seq_nr))
@@ -205,13 +217,76 @@ where
 }
 
 #[async_trait]
+impl<T, S, AggSerde, DEvtSerde, IEvtSerde> AggregatesLoader<T> for EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
+where
+    T: AggregateRoot,
+    S: EventStore + InvertedIndexStore,
+    AggSerde: Serde<T> + 'static,
+    DEvtSerde: Serde<T::DomainEvent> + 'static,
+    IEvtSerde: Serde<T::IntegrationEvent> + 'static,
+{
+    async fn load_aggregates(&self, keyword: &str) -> Result<Vec<VersionedAggregate<T>>, PersistenceError> {
+        let aggregate_ids = self.store.get_aggregate_ids(keyword).await?;
+
+        if aggregate_ids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let aggregates: Vec<VersionedAggregate<T>> = stream::iter(aggregate_ids)
+            .map(|id| async move {
+                match id.parse::<AggregateId<T::ID>>() {
+                    Ok(aggregate_id) => match self.load_aggregate(&aggregate_id).await {
+                        Ok(agg) => Ok(Some(agg)),
+                        Err(e) => {
+                            warn!(
+                                aggregate_id = %aggregate_id,
+                                error = %e,
+                                "Failed to load aggregate, skipping"
+                            );
+                            Ok(None)
+                        }
+                    },
+                    Err(e) => {
+                        warn!(
+                            aggregate_id = %id,
+                            error = ?e,
+                            "Failed to parse aggregate ID, skipping"
+                        );
+                        Ok(None)
+                    }
+                }
+            })
+            .buffer_unordered(self.concurrent_limit)
+            .filter_map(
+                |result: Result<Option<VersionedAggregate<T>>, PersistenceError>| async move {
+                    match result {
+                        Ok(Some(agg)) => Some(agg),
+                        Ok(None) => None,
+                        Err(e) => {
+                            warn!(
+                                error = %e,
+                                "Unexpected error in aggregate loading stream"
+                            );
+                            None
+                        }
+                    }
+                },
+            )
+            .collect()
+            .await;
+
+        Ok(aggregates)
+    }
+}
+
+#[async_trait]
 impl<T, S, AggSerde, DEvtSerde, IEvtSerde> AggregateCommiter<T> for EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
 where
     T: AggregateRoot,
-    S: EventStore,
-    AggSerde: Serde<T>,
-    DEvtSerde: Serde<T::DomainEvent>,
-    IEvtSerde: Serde<T::IntegrationEvent>,
+    S: EventStore + InvertedIndexStore,
+    AggSerde: Serde<T> + 'static,
+    DEvtSerde: Serde<T::DomainEvent> + 'static,
+    IEvtSerde: Serde<T::IntegrationEvent> + 'static,
 {
     async fn commit(
         &self,

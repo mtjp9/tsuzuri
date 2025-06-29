@@ -7,6 +7,9 @@ use std::fmt;
 pub trait DomainEvent: fmt::Debug + Clone + message::Message + Send + Sync + 'static {
     fn id(&self) -> EventIdType;
     fn event_type(&self) -> &'static str;
+    fn index_keywords(&self) -> Vec<String> {
+        vec![]
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

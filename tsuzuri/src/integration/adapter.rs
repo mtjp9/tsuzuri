@@ -1,4 +1,4 @@
-use crate::{event::Envelope, integration::error::Result, IntegrationEvent};
+use crate::{event::Envelope, integration::error::Result, integration_event::IntegrationEvent};
 use async_trait::async_trait;
 
 pub trait Adapter<E: IntegrationEvent>: Executer<E> + Send + Sync + 'static {}
