@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.27] - 2025-07-01
+
+### Added
+
+- Test framework module for behavior-driven development (BDD) style testing
+  - `TestFramework` struct providing Given-When-Then pattern for aggregate testing
+  - Fluent API for setting up test scenarios with initial events
+  - Support for verifying events, errors, and aggregate state
+  - Methods: `given()`, `given_no_previous_events()`, `when()`, `then_expect_events()`, `then_expect_error()`, `then_aggregate_state()`
+  - Comprehensive test examples demonstrating framework usage
+
+### Changed
+
+- Added `PartialEq` trait derivation to domain events for test assertions
+- Added `Clone` trait derivation to aggregates for test framework compatibility
+- Updated aggregate module tests to use the new `TestFramework` instead of manual testing
+- Improved test readability and maintainability with declarative test structure
+
 ## [0.1.26] - 2025-06-30
 
 ### Added

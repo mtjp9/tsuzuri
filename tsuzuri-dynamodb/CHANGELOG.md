@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.22] - 2025-07-01
+
+### Added
+
+- Test framework examples demonstrating the new tsuzuri test framework
+  - Created `test_framework_example.rs` with comprehensive test scenarios
+  - Examples for aggregate creation, updates, state verification, and event sequences
+  - Demonstrates Given-When-Then pattern usage with DynamoDB fixtures
+
+### Changed
+
+- Added `PartialEq` trait to test domain events (`TestAggregateCreated`, `TestAggregateUpdated`, `TestDomainEvent`)
+- Added `#[allow(dead_code)]` attributes to test fixtures to suppress warnings
+- Enhanced test fixtures compatibility with tsuzuri's new test framework
+
 ## [0.1.21] - 2025-06-29
 
 ### Changed
