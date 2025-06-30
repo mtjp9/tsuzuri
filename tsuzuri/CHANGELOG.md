@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.26] - 2025-06-30
+
+### Added
+
+- Time conversion utilities for timestamp handling
+  - `system_time_to_timestamp()` - Convert SystemTime to prost_types::Timestamp
+  - `now_timestamp()` - Get current time as Timestamp
+  - `days_from_now_timestamp()` - Get Timestamp for N days in the future
+  - `to_rfc3339()` - Convert Timestamp to RFC3339 formatted string
+  - `from_rfc3339()` - Parse RFC3339 string to Timestamp
+  - Comprehensive unit tests for all helper functions
+- Added dependencies: `prost-types` (0.13.5) and `chrono` (0.4.41)
+
 ## [0.1.25] - 2025-06-29
 
 ### Fixed

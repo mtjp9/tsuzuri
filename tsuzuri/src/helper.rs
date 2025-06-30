@@ -35,7 +35,7 @@ pub fn to_rfc3339(ts: &Timestamp) -> Result<String, TimestampError> {
 
 /// Convert a string in RFC3339 format to a `prost_types::Timestamp`.
 pub fn from_rfc3339(s: &str) -> Result<Timestamp, String> {
-    let dt = DateTime::parse_from_rfc3339(s).map_err(|e| format!("Failed to parse RFC3339 string: {}", e))?;
+    let dt = DateTime::parse_from_rfc3339(s).map_err(|e| format!("Failed to parse RFC3339 string: {e}"))?;
     let system_time = SystemTime::from(dt);
     system_time_to_timestamp(system_time)
 }
