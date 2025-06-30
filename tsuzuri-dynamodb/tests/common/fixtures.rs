@@ -64,7 +64,7 @@ impl Command for TestCommand {
 }
 
 // Domain event enum
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum TestDomainEvent {
     Created(TestAggregateCreated),
     Updated(TestAggregateUpdated),
@@ -160,13 +160,13 @@ pub struct UpdateTestAggregate {
 }
 
 // Test events (individual structs)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TestAggregateCreated {
     pub id: AggregateId<TestId>,
     pub name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TestAggregateUpdated {
     pub value: i32,
 }

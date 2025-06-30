@@ -17,6 +17,7 @@ pub mod projection;
 pub mod sequence_number;
 pub mod serde;
 pub mod snapshot;
+pub mod test;
 pub mod version;
 mod versioned_aggregate;
 

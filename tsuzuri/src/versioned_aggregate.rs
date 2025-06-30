@@ -72,6 +72,7 @@ mod tests {
         event_id::EventIdType,
         integration_event::{self, IntegrationEvent},
         message,
+        test::TestFramework,
     };
 
     // Test ID types
@@ -174,7 +175,7 @@ mod tests {
     }
 
     // Test aggregate
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, Clone, PartialEq)]
     struct TestAggregate {
         id: AggregateId<TestId>,
         state: String,
@@ -246,31 +247,44 @@ mod tests {
 
     #[test]
     fn test_handle_command() {
-        let mut versioned = create_test_versioned_aggregate();
-        let cmd = TestCommand::DoSomething { id: *versioned.id() };
+        let id = AggregateId::<TestId>::new();
+        let aggregate = TestAggregate::init(id);
 
-        let result = versioned.handle(cmd);
-        assert!(result.is_ok());
+        // Test successful command handling
+        TestFramework::with(aggregate.clone())
+            .given_no_previous_events()
+            .when(TestCommand::DoSomething { id })
+            .then_verify(|result| {
+                assert!(result.is_ok());
+                let events = result.unwrap();
+                assert_eq!(events.len(), 1);
+                match &events[0] {
+                    TestEvent::SomethingHappened { data, .. } => {
+                        assert_eq!(data, "something");
+                    }
+                    _ => panic!("Expected TestEvent::SomethingHappened"),
+                }
+            });
 
-        let event = result.unwrap();
-        assert!(matches!(event, TestEvent::SomethingHappened { .. }));
-
-        // Aggregate state should NOT be updated yet (apply not called in handle)
-        assert_eq!(versioned.aggregate.state, "initial");
+        // Test error command handling
+        TestFramework::with(aggregate)
+            .given_no_previous_events()
+            .when(TestCommand::CausesError { id })
+            .then_expect_error_matches(|e| matches!(e, TestError::SomethingWentWrong));
     }
 
     #[test]
     fn test_apply_event() {
-        let mut versioned = create_test_versioned_aggregate();
-        let event = TestEvent::SomethingHappened {
-            id: EventIdType::new(),
-            data: "test data".to_string(),
-        };
+        let id = AggregateId::<TestId>::new();
+        let aggregate = TestAggregate::init(id);
 
-        versioned.apply(event);
-
-        // State should be updated
-        assert_eq!(versioned.aggregate.state, "initial -> test data");
+        // Test event application through command execution
+        TestFramework::with(aggregate)
+            .given_no_previous_events()
+            .when(TestCommand::DoSomething { id })
+            .then_aggregate_state(|agg| {
+                assert_eq!(agg.state, "initial -> something");
+            });
     }
 
     #[test]
@@ -302,13 +316,27 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_command_error() {
-        let mut versioned = create_test_versioned_aggregate();
-        let cmd = TestCommand::CausesError { id: *versioned.id() };
+    fn test_aggregate_with_given_events() {
+        let id = AggregateId::<TestId>::new();
+        let aggregate = TestAggregate::init(id);
 
-        let result = versioned.handle(cmd);
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), TestError::SomethingWentWrong));
+        // Test with given events building up state
+        TestFramework::with(aggregate)
+            .given(vec![
+                TestEvent::SomethingHappened {
+                    id: EventIdType::new(),
+                    data: "first".to_string(),
+                },
+                TestEvent::SomethingElseHappened {
+                    id: EventIdType::new(),
+                    data: "second".to_string(),
+                },
+            ])
+            .when(TestCommand::DoSomething { id })
+            .then_aggregate_state(|agg| {
+                // State should reflect all given events plus the new command
+                assert_eq!(agg.state, "initial -> first -> second -> something");
+            });
     }
 
     #[test]

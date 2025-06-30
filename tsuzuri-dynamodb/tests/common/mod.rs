@@ -7,13 +7,14 @@ use aws_sdk_dynamodb::types::{
 use aws_sdk_dynamodb::Client;
 use tsuzuri_dynamodb::store::{DynamoDB, TableNames};
 
+#[allow(dead_code)]
 pub struct LocalStackSetup {
     pub client: Client,
     pub table_names: TableNames,
-    #[allow(dead_code)]
     pub endpoint_url: String,
 }
 
+#[allow(dead_code)]
 impl LocalStackSetup {
     pub async fn new() -> Self {
         // For tests, we assume LocalStack is running

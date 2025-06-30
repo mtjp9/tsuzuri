@@ -32,7 +32,7 @@ pub trait AggregateRoot: fmt::Debug + Send + Sync + 'static {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{event_id::EventIdType, integration_event, message};
+    use crate::{event_id::EventIdType, integration_event, message, test::TestFramework};
     use std::sync::Arc;
 
     // Test ID types
@@ -121,7 +121,7 @@ mod tests {
     }
 
     // Domain Events
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     #[allow(dead_code)]
     enum OrderEvent {
         Created {
@@ -192,7 +192,7 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     #[allow(dead_code)]
     enum UserEvent {
         Created {
@@ -337,7 +337,7 @@ mod tests {
     }
 
     // Test Aggregates
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     #[allow(dead_code)]
     struct OrderAggregate {
         id: AggregateId<OrderId>,
@@ -346,7 +346,7 @@ mod tests {
         status: OrderStatus,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, Clone, PartialEq)]
     enum OrderStatus {
         Pending,
         Confirmed,
@@ -431,7 +431,7 @@ mod tests {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     #[allow(dead_code)]
     struct UserAggregate {
         id: AggregateId<UserId>,
@@ -631,60 +631,159 @@ mod tests {
 
     #[test]
     fn test_order_command_handling() {
-        let mut order = OrderAggregate {
-            id: AggregateId::<OrderId>::new(),
-            user_id: AggregateId::<UserId>::new(),
-            total_amount: 25000,
-            status: OrderStatus::Pending,
-        };
+        let order_id = AggregateId::<OrderId>::new();
+        let user_id = AggregateId::<UserId>::new();
+        let order = OrderAggregate::init(order_id);
 
-        // Test confirm command
-        let result = order.handle(OrderCommand::Confirm { id: order.id });
-        assert!(result.is_ok());
-        order.status = OrderStatus::Confirmed; // Simulate applying event
+        // Test create command
+        TestFramework::with(order.clone())
+            .given_no_previous_events()
+            .when(OrderCommand::Create {
+                id: order_id,
+                user_id,
+                total_amount: 25000,
+            })
+            .then_verify(|result| {
+                assert!(result.is_ok());
+                let events = result.unwrap();
+                assert_eq!(events.len(), 1);
+                match &events[0] {
+                    OrderEvent::Created {
+                        id: _,
+                        user_id: uid,
+                        total_amount,
+                    } => {
+                        assert_eq!(uid, &user_id);
+                        assert_eq!(total_amount, &25000);
+                    }
+                    _ => panic!("Expected OrderEvent::Created"),
+                }
+            });
 
-        // Test ship command
-        let result = order.handle(OrderCommand::Ship { id: order.id });
-        assert!(result.is_ok());
-        order.status = OrderStatus::Shipped; // Simulate applying event
+        // Test confirm command from pending state
+        TestFramework::with(order.clone())
+            .given(vec![OrderEvent::Created {
+                id: EventIdType::new(),
+                user_id,
+                total_amount: 25000,
+            }])
+            .when(OrderCommand::Confirm { id: order_id })
+            .then_verify(|result| {
+                assert!(result.is_ok());
+                let events = result.unwrap();
+                assert_eq!(events.len(), 1);
+                assert!(matches!(events[0], OrderEvent::Confirmed { .. }));
+            });
 
-        // Test invalid state transition
-        let result = order.handle(OrderCommand::Confirm { id: order.id });
-        assert!(result.is_err());
+        // Test ship command from confirmed state
+        TestFramework::with(order.clone())
+            .given(vec![
+                OrderEvent::Created {
+                    id: EventIdType::new(),
+                    user_id,
+                    total_amount: 25000,
+                },
+                OrderEvent::Confirmed { id: EventIdType::new() },
+            ])
+            .when(OrderCommand::Ship { id: order_id })
+            .then_verify(|result| {
+                assert!(result.is_ok());
+                let events = result.unwrap();
+                assert_eq!(events.len(), 1);
+                assert!(matches!(events[0], OrderEvent::Shipped { .. }));
+            });
+
+        // Test invalid state transition - trying to confirm when already shipped
+        TestFramework::with(order)
+            .given(vec![
+                OrderEvent::Created {
+                    id: EventIdType::new(),
+                    user_id,
+                    total_amount: 25000,
+                },
+                OrderEvent::Confirmed { id: EventIdType::new() },
+                OrderEvent::Shipped { id: EventIdType::new() },
+            ])
+            .when(OrderCommand::Confirm { id: order_id })
+            .then_expect_error_matches(|e| matches!(e, OrderError::InvalidStateTransition));
     }
 
     #[test]
     fn test_user_command_handling() {
-        let mut user = UserAggregate {
-            id: AggregateId::<UserId>::new(),
-            name: "John Doe".to_string(),
-            email: "john@example.com".to_string(),
-        };
+        let user_id = AggregateId::<UserId>::new();
+        let user = UserAggregate::init(user_id);
 
-        // Test valid email update
-        let result = user.handle(UserCommand::UpdateEmail {
-            id: user.id,
-            email: "john.doe@example.com".to_string(),
-        });
-        assert!(result.is_ok());
-        match result.unwrap() {
-            UserEvent::EmailUpdated {
-                id: _,
-                old_email,
-                new_email,
-            } => {
-                assert_eq!(old_email, "john@example.com");
-                assert_eq!(new_email, "john.doe@example.com");
-            }
-            _ => panic!("Unexpected event"),
-        }
+        // Test create command with valid email
+        TestFramework::with(user.clone())
+            .given_no_previous_events()
+            .when(UserCommand::Create {
+                id: user_id,
+                name: "John Doe".to_string(),
+                email: "john@example.com".to_string(),
+            })
+            .then_verify(|result| {
+                assert!(result.is_ok());
+                let events = result.unwrap();
+                assert_eq!(events.len(), 1);
+                match &events[0] {
+                    UserEvent::Created { id: _, name, email } => {
+                        assert_eq!(name, "John Doe");
+                        assert_eq!(email, "john@example.com");
+                    }
+                    _ => panic!("Expected UserEvent::Created"),
+                }
+            });
 
-        // Test invalid email
-        let result = user.handle(UserCommand::UpdateEmail {
-            id: user.id,
-            email: "invalid-email".to_string(),
-        });
-        assert!(result.is_err());
+        // Test email update with valid email
+        TestFramework::with(user.clone())
+            .given(vec![UserEvent::Created {
+                id: EventIdType::new(),
+                name: "John Doe".to_string(),
+                email: "john@example.com".to_string(),
+            }])
+            .when(UserCommand::UpdateEmail {
+                id: user_id,
+                email: "john.doe@example.com".to_string(),
+            })
+            .then_verify(|result| {
+                assert!(result.is_ok());
+                let events = result.unwrap();
+                assert_eq!(events.len(), 1);
+                match &events[0] {
+                    UserEvent::EmailUpdated {
+                        id: _,
+                        old_email,
+                        new_email,
+                    } => {
+                        assert_eq!(old_email, "john@example.com");
+                        assert_eq!(new_email, "john.doe@example.com");
+                    }
+                    _ => panic!("Expected UserEvent::EmailUpdated"),
+                }
+            });
+
+        // Test create command with invalid email
+        TestFramework::with(user.clone())
+            .given_no_previous_events()
+            .when(UserCommand::Create {
+                id: user_id,
+                name: "John Doe".to_string(),
+                email: "invalid-email".to_string(),
+            })
+            .then_expect_error_matches(|e| matches!(e, UserError::InvalidEmail));
+
+        // Test email update with invalid email
+        TestFramework::with(user)
+            .given(vec![UserEvent::Created {
+                id: EventIdType::new(),
+                name: "John Doe".to_string(),
+                email: "john@example.com".to_string(),
+            }])
+            .when(UserCommand::UpdateEmail {
+                id: user_id,
+                email: "invalid-email".to_string(),
+            })
+            .then_expect_error_matches(|e| matches!(e, UserError::InvalidEmail));
     }
 
     #[test]
