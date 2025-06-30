@@ -6,6 +6,7 @@ pub mod error;
 pub mod event;
 mod event_id;
 pub mod event_store;
+pub mod helper;
 pub mod integration;
 pub mod integration_event;
 pub mod inverted_index_store;
