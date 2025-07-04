@@ -1,0 +1,23 @@
+[package]
+name = "tsuzuri-libsql"
+version = "0.1.0"
+categories = ["database", "data-structures", "development-tools"]
+keywords = ["libsql", "aws", "database"]
+authors = [
+  "Yuki Tanaka <matakitanakajp@gmail.com>",
+  "Yuki Tanaka <y-tanaka@ohmylike.jp>",
+]
+description = "LibSQL integration for Tsuzuri"
+repository = "https://github.com/mtjp9/tsuzuri"
+homepage = "https://github.com/mtjp9/tsuzuri"
+readme = "README.md"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = { workspace = true }
+
+[dependencies]
+bytes = { version = "1" }
+hex = { version = "0.4" }
+libsql = { version = "0.9.11" }
+dotenvy = { version = "0.15.7" }
+thiserror = { version = "2.0" }
