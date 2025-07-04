@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.23] - 2025-07-04
+
+### Added
+
+- Kinesis Data Streams integration for event processing
+  - New `integration` and `projection` modules for stream processing
+  - Event type router for processor-based event routing
+  - Lambda function support for Kinesis event processing
+  - Helper utilities for stream processing workflows
+
+### Changed
+
+- Enabled AWS Lambda and Kinesis dependencies in Cargo.toml
+  - `aws_lambda_events` v0.16.0 with DynamoDB and Kinesis features
+  - `lambda_runtime` v0.14.2 for Lambda execution
+  - `aws-sdk-kinesis` v1.70.0 for Kinesis client
+  - Re-enabled `chrono`, `http`, and `base64` dependencies
+
+### Removed
+
+- DynamoDB Streams error handling (replaced with Kinesis Data Streams)
+  - Removed `DynamoDB` and `DynamoDBStreams` error variants
+  - Simplified error structure to focus on Kinesis integration
+
 ## [0.1.22] - 2025-07-01
 
 ### Added

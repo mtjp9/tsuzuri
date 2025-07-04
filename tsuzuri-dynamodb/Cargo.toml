@@ -1,6 +1,6 @@
 [package]
 name = "tsuzuri-dynamodb"
-version = "0.1.22"
+version = "0.1.23"
 categories = ["database", "data-structures", "development-tools"]
 keywords = ["dynamodb", "aws", "database"]
 authors = [
