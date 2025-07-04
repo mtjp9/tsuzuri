@@ -20,9 +20,7 @@ pub fn extract_string_attribute<'a>(
 pub fn extract_binary_attribute(attributes: &HashMap<String, AttributeValue>, field_name: &str) -> Result<Vec<u8>> {
     match attributes.get(field_name) {
         Some(AttributeValue::B(bytes)) => base64::Engine::decode(&base64::engine::general_purpose::STANDARD, bytes)
-            .map_err(|e| {
-                StreamProcessorError::InvalidData(format!("Failed to decode {field_name} as base64: {e}"))
-            }),
+            .map_err(|e| StreamProcessorError::InvalidData(format!("Failed to decode {field_name} as base64: {e}"))),
         Some(_) => Err(StreamProcessorError::InvalidData(format!(
             "Field '{field_name}' is not binary data"
         ))),

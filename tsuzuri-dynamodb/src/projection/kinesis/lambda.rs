@@ -59,7 +59,7 @@ mod tests {
 
     // Mock ProcessorTrait implementation for testing
     type MockProcessorCalls = Arc<Mutex<Vec<(String, Vec<u8>, Vec<u8>)>>>;
-    
+
     struct MockProcessor {
         calls: MockProcessorCalls,
         should_fail: bool,
