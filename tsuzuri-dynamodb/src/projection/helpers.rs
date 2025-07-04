@@ -19,8 +19,19 @@ pub fn extract_string_attribute<'a>(
 
 pub fn extract_binary_attribute(attributes: &HashMap<String, AttributeValue>, field_name: &str) -> Result<Vec<u8>> {
     match attributes.get(field_name) {
-        Some(AttributeValue::B(bytes)) => base64::Engine::decode(&base64::engine::general_purpose::STANDARD, bytes)
-            .map_err(|e| StreamProcessorError::InvalidData(format!("Failed to decode {field_name} as base64: {e}"))),
+        Some(AttributeValue::B(value)) => {
+            // DynamoDB Streams via Kinesis sends binary data as a base64-encoded string
+            // Check if the value is already a string that needs decoding
+            if let Ok(base64_str) = std::str::from_utf8(value) {
+                // If it's valid UTF-8, assume it's a base64 string and decode it
+                base64::Engine::decode(&base64::engine::general_purpose::STANDARD, base64_str).map_err(|e| {
+                    StreamProcessorError::InvalidData(format!("Failed to decode {field_name} as base64: {e}"))
+                })
+            } else {
+                // If it's not valid UTF-8, assume it's already decoded binary data
+                Ok(value.clone())
+            }
+        }
         Some(_) => Err(StreamProcessorError::InvalidData(format!(
             "Field '{field_name}' is not binary data"
         ))),
@@ -132,5 +143,30 @@ mod tests {
             }
             _ => panic!("Expected InvalidData error"),
         }
+    }
+
+    #[test]
+    fn test_extract_binary_attribute_kinesis_format() {
+        let mut attributes = HashMap::new();
+        let test_data = b"test binary data";
+        let encoded = base64::engine::general_purpose::STANDARD.encode(test_data);
+        // Simulate Kinesis format: base64 string as bytes
+        attributes.insert("test_field".to_string(), AttributeValue::B(encoded.as_bytes().to_vec()));
+
+        let result = extract_binary_attribute(&attributes, "test_field");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), test_data);
+    }
+
+    #[test]
+    fn test_extract_binary_attribute_raw_binary() {
+        let mut attributes = HashMap::new();
+        // Raw binary data (not base64, not valid UTF-8)
+        let test_data = vec![0xFF, 0xFE, 0xFD, 0xFC];
+        attributes.insert("test_field".to_string(), AttributeValue::B(test_data.clone()));
+
+        let result = extract_binary_attribute(&attributes, "test_field");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), test_data);
     }
 }
