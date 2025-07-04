@@ -135,7 +135,7 @@ impl LocalKinesisDebugger {
             .stream_name(&self.stream_name)
             .send()
             .await
-            .map_err(|e| StreamProcessorError::KinesisDataStreams(format!("Failed to describe stream: {}", e)))?;
+            .map_err(|e| StreamProcessorError::KinesisDataStreams(format!("Failed to describe stream: {e}")))?;
 
         resp.stream_description
             .ok_or_else(|| StreamProcessorError::InvalidData("Stream description not found".to_string()))
@@ -160,7 +160,7 @@ impl LocalKinesisDebugger {
                 .send()
                 .await
                 .map_err(|e| {
-                    StreamProcessorError::KinesisDataStreams(format!("Failed to get records from shard: {}", e))
+                    StreamProcessorError::KinesisDataStreams(format!("Failed to get records from shard: {e}"))
                 })?;
 
             let records = records_output.records();
@@ -195,7 +195,7 @@ impl LocalKinesisDebugger {
             .shard_iterator_type(ShardIteratorType::Latest)
             .send()
             .await
-            .map_err(|e| StreamProcessorError::KinesisDataStreams(format!("Failed to get shard iterator: {}", e)))?;
+            .map_err(|e| StreamProcessorError::KinesisDataStreams(format!("Failed to get shard iterator: {e}")))?;
 
         output
             .shard_iterator()
@@ -220,7 +220,7 @@ impl LocalKinesisDebugger {
         println!("\n========== Debug Session Summary ==========");
         if let (Some(start), Some(end)) = (metrics.start_time, metrics.end_time) {
             let duration = end - start;
-            println!("Duration: {}", duration);
+            println!("Duration: {duration}");
         }
         println!("Total records seen: {}", metrics.total_records);
         println!("Successfully processed: {}", metrics.processed_records);
@@ -229,7 +229,7 @@ impl LocalKinesisDebugger {
         if !metrics.event_type_counts.is_empty() {
             println!("\nEvent Type Distribution:");
             for (event_type, count) in &metrics.event_type_counts {
-                println!("  {}: {}", event_type, count);
+                println!("  {event_type}: {count}");
             }
         }
         println!("==========================================\n");
@@ -254,11 +254,11 @@ impl LocalDebugProcessor {
         // Parse the Kinesis record data
         let data = record.data.as_ref();
         let json: serde_json::Value = serde_json::from_slice(data)
-            .map_err(|e| StreamProcessorError::InvalidData(format!("Failed to deserialize payload: {}", e)))?;
+            .map_err(|e| StreamProcessorError::InvalidData(format!("Failed to deserialize payload: {e}")))?;
 
         // Extract DynamoDB stream record
         let stream_record: aws_lambda_events::dynamodb::StreamRecord = serde_json::from_value(json["dynamodb"].clone())
-            .map_err(|e| StreamProcessorError::InvalidData(format!("Failed to convert to StreamRecord: {}", e)))?;
+            .map_err(|e| StreamProcessorError::InvalidData(format!("Failed to convert to StreamRecord: {e}")))?;
 
         let attribute_values = stream_record.new_image.clone().into_inner();
 
@@ -352,20 +352,20 @@ impl LocalDebugProcessor {
         println!("Sequence Number: {}", record.sequence_number);
         println!("Partition Key: {}", record.partition_key);
         if let Some(arrival) = record.approximate_arrival_timestamp {
-            let arrival_time = chrono::DateTime::from_timestamp_millis(arrival.to_millis().unwrap_or(0) as i64)
-                .unwrap_or_else(|| chrono::Utc::now());
-            println!("Arrival Time: {}", arrival_time);
+            let arrival_time = chrono::DateTime::from_timestamp_millis(arrival.to_millis().unwrap_or(0))
+                .unwrap_or_else(chrono::Utc::now);
+            println!("Arrival Time: {arrival_time}");
         }
-        println!("Event Type: {}", event_type);
+        println!("Event Type: {event_type}");
 
         // Print the DynamoDB event details
         if let Some(event_name) = json.get("eventName").and_then(|v| v.as_str()) {
-            println!("DynamoDB Event: {}", event_name);
+            println!("DynamoDB Event: {event_name}");
         }
 
         // Pretty print the JSON
         if let Ok(pretty) = serde_json::to_string_pretty(&json) {
-            println!("Full Record:\n{}", pretty);
+            println!("Full Record:\n{pretty}");
         }
 
         println!("====================================");

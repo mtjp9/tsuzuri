@@ -27,7 +27,10 @@ pub enum ConnectionConfig {
 #[derive(Debug)]
 pub enum ConnectionType {
     Remote(Connection),
-    EmbeddedReplica { connection: Connection, database: Database },
+    EmbeddedReplica {
+        connection: Connection,
+        database: Box<Database>,
+    },
 }
 
 #[derive(Debug)]
@@ -66,7 +69,7 @@ impl ConnectionManager {
             let key_bytes = if encryption_key.len() == 64 {
                 // Hex encoded key (64 chars = 32 bytes)
                 hex::decode(&encryption_key)
-                    .map_err(|e| libsql::Error::ConnectionFailed(format!("Invalid hex in encryption key: {}", e)))?
+                    .map_err(|e| libsql::Error::ConnectionFailed(format!("Invalid hex in encryption key: {e}")))?
             } else {
                 // Raw string key (should be 32 bytes)
                 encryption_key.into_bytes()
@@ -88,7 +91,7 @@ impl ConnectionManager {
         Ok(Self {
             connection_type: ConnectionType::EmbeddedReplica {
                 connection: conn,
-                database: db,
+                database: Box::new(db),
             },
         })
     }

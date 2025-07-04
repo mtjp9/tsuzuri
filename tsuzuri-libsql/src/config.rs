@@ -71,7 +71,9 @@ impl LibSqlConfig {
                     return Err(ConfigError::InvalidConfiguration("URL cannot be empty".to_string()));
                 }
                 if config.auth_token.is_empty() {
-                    return Err(ConfigError::InvalidConfiguration("Auth token cannot be empty".to_string()));
+                    return Err(ConfigError::InvalidConfiguration(
+                        "Auth token cannot be empty".to_string(),
+                    ));
                 }
                 if !config.url.starts_with("libsql://") && !config.url.starts_with("https://") {
                     return Err(ConfigError::InvalidConfiguration(
@@ -81,13 +83,19 @@ impl LibSqlConfig {
             }
             ConnectionConfig::EmbeddedReplica(config) => {
                 if config.local_path.is_empty() {
-                    return Err(ConfigError::InvalidConfiguration("Local path cannot be empty".to_string()));
+                    return Err(ConfigError::InvalidConfiguration(
+                        "Local path cannot be empty".to_string(),
+                    ));
                 }
                 if config.sync_url.is_empty() {
-                    return Err(ConfigError::InvalidConfiguration("Sync URL cannot be empty".to_string()));
+                    return Err(ConfigError::InvalidConfiguration(
+                        "Sync URL cannot be empty".to_string(),
+                    ));
                 }
                 if config.auth_token.is_empty() {
-                    return Err(ConfigError::InvalidConfiguration("Auth token cannot be empty".to_string()));
+                    return Err(ConfigError::InvalidConfiguration(
+                        "Auth token cannot be empty".to_string(),
+                    ));
                 }
                 if !config.sync_url.starts_with("libsql://") && !config.sync_url.starts_with("https://") {
                     return Err(ConfigError::InvalidConfiguration(
@@ -95,11 +103,7 @@ impl LibSqlConfig {
                     ));
                 }
                 if let Some(ref key) = config.encryption_key {
-                    let key_len = if key.len() == 64 {
-                        32
-                    } else {
-                        key.len()
-                    };
+                    let key_len = if key.len() == 64 { 32 } else { key.len() };
                     if key_len != 32 {
                         return Err(ConfigError::InvalidConfiguration(
                             "Encryption key must be exactly 32 bytes (256 bits)".to_string(),
