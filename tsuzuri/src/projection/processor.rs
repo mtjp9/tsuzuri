@@ -29,16 +29,17 @@ where
     E: DomainEvent,
     EvtSerde: serde::Serde<E>,
 {
-    pub async fn process_bytes(&self, payload: &[u8]) -> Result<()> {
-        let event = self.to_event(payload)?;
+    pub async fn process_bytes(&self, payload: &[u8], metadata: &[u8]) -> Result<()> {
+        let event = self.to_event(payload, metadata)?;
         self.adapter.project(event).await?;
         Ok(())
     }
 
-    pub fn to_event(&self, payload: &[u8]) -> Result<Envelope<E>> {
+    pub fn to_event(&self, payload: &[u8], metadata: &[u8]) -> Result<Envelope<E>> {
         let event = self.event_serde.deserialize(payload)?;
+        let metadata = serde_json::from_slice::<crate::event::Metadata>(metadata)?;
         let envelope: Envelope<E> = event.into();
-        Ok(envelope)
+        Ok(envelope.set_metadata(metadata))
     }
 }
 
@@ -152,7 +153,8 @@ mod tests {
         let processor = Processor::new(adapter.clone(), serde);
 
         let payload = b"test-payload";
-        let result = processor.process_bytes(payload).await;
+        let metadata = b"{}"; // Valid empty JSON object
+        let result = processor.process_bytes(payload, metadata).await;
 
         assert!(result.is_ok());
 
@@ -168,7 +170,8 @@ mod tests {
         let processor = Processor::new(adapter.clone(), serde);
 
         let payload = b"test-payload";
-        let result = processor.process_bytes(payload).await;
+        let metadata = b"{}"; // Valid empty JSON object
+        let result = processor.process_bytes(payload, metadata).await;
 
         assert!(result.is_err());
         match result {
@@ -187,7 +190,8 @@ mod tests {
         let processor = Processor::new(adapter.clone(), serde);
 
         let payload = b"test-payload";
-        let result = processor.process_bytes(payload).await;
+        let metadata = b"{}"; // Valid empty JSON object
+        let result = processor.process_bytes(payload, metadata).await;
 
         assert!(result.is_err());
         match result {
@@ -205,7 +209,8 @@ mod tests {
         let processor = Processor::new(adapter, serde);
 
         let payload = b"test-data";
-        let result = processor.to_event(payload);
+        let metadata = b"{}"; // Empty metadata for simplicity
+        let result = processor.to_event(payload, metadata);
 
         assert!(result.is_ok());
         let envelope = result.unwrap();
