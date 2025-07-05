@@ -17,12 +17,12 @@ async fn test_persist_and_stream_domain_events() {
     let setup = LocalStackSetup::new().await;
     let store = setup.create_dynamodb_store();
 
-    let aggregate_id = "test-123";
+    let aggregate_id = "test-01J1234567890ABCDEFGHJKMNP";
     let aggregate_type = TestAggregate::TYPE;
 
     // Create test events
     let event1 = TestAggregateCreated {
-        id: aggregate_id.parse().unwrap(),
+        id: aggregate_id.parse().expect("Failed to parse aggregate_id"),
         name: "Test Aggregate".to_string(),
     };
 
@@ -86,7 +86,7 @@ async fn test_persist_with_integration_events() {
     let setup = LocalStackSetup::new().await;
     let store = setup.create_dynamodb_store();
 
-    let aggregate_id = "test-456";
+    let aggregate_id = "test-01J1234567890ABCDEFGHJKMNQ";
     let aggregate_type = TestAggregate::TYPE;
 
     let domain_event = SerializedDomainEvent {
@@ -100,7 +100,7 @@ async fn test_persist_with_integration_events() {
     };
 
     let integration_event = TestIntegrationEvent {
-        aggregate_id: aggregate_id.parse().unwrap(),
+        aggregate_id: aggregate_id.parse().expect("Failed to parse aggregate_id"),
         message: "Integration event message".to_string(),
     };
 
@@ -135,9 +135,9 @@ async fn test_snapshot_create_and_retrieve() {
     let setup = LocalStackSetup::new().await;
     let store = setup.create_dynamodb_store();
 
-    let aggregate_id = "test-789";
+    let aggregate_id = "test-01J1234567890ABCDEFGHJKMNR";
     let aggregate = TestAggregate {
-        id: aggregate_id.parse().unwrap(),
+        id: aggregate_id.parse().expect("Failed to parse aggregate_id"),
         name: "Snapshot Test".to_string(),
         value: 100,
     };
@@ -247,9 +247,9 @@ async fn test_snapshot_update() {
     let setup = LocalStackSetup::new().await;
     let store = setup.create_dynamodb_store();
 
-    let aggregate_id = "test-snapshot-update";
+    let aggregate_id = "test-01J1234567890ABCDEFGHJKMNS";
     let aggregate = TestAggregate {
-        id: aggregate_id.parse().unwrap(),
+        id: aggregate_id.parse().expect("Failed to parse aggregate_id"),
         name: "Initial".to_string(),
         value: 1,
     };
@@ -281,7 +281,7 @@ async fn test_snapshot_update() {
 
     // Update aggregate
     let updated_aggregate = TestAggregate {
-        id: aggregate_id.parse().unwrap(),
+        id: aggregate_id.parse().expect("Failed to parse aggregate_id"),
         name: "Updated".to_string(),
         value: 2,
     };
