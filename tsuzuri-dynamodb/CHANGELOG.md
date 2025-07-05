@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.251] - 2025-07-06
+
+### Fixed
+
+- Improved binary attribute extraction to handle multiple formats
+  - Support base64-encoded strings from Kinesis streams
+  - Handle raw binary data and JSON bytes correctly
+  - Add robust format detection to avoid decoding errors
+  - Update tests with real-world scenarios for Kinesis metadata
+
 ## [0.1.25] - 2025-07-05
 
 ### Fixed
