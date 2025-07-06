@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.253] - 2025-07-06
+
+### Fixed
+
+- Aligned integration module's binary attribute extraction with projection module
+  - Handle multiple binary formats from DynamoDB streams via Kinesis
+  - Support base64-encoded strings, raw binary data, and already-decoded JSON bytes
+  - Fix "Invalid symbol 10, offset 0" errors when processing certain stream records
+  - Add comprehensive tests for various binary data formats
+
 ## [0.1.252] - 2025-07-06
 
 ### Changed
