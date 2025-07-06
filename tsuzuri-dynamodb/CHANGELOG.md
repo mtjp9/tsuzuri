@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.251] - 2025-07-06
+## [0.1.252] - 2025-07-06
+
+### Changed
+
+- Refactored kinesis module structure
+  - Removed unused `streams` module from projection/kinesis
+  - Added `local` module to integration/kinesis for consistency with projection structure
+  - Cleaned up commented module references
+
+## [0.1.251] - 2025-07-05
 
 ### Fixed
 
