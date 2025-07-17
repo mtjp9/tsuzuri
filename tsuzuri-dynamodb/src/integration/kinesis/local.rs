@@ -11,7 +11,8 @@ use aws_sdk_kinesis::{
 };
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 /// Local Kinesis debugger for testing and debugging DynamoDB stream events
@@ -85,7 +86,7 @@ impl LocalKinesisDebugger {
 
         // Set start time
         {
-            let mut metrics = self.metrics.lock().unwrap();
+            let mut metrics = self.metrics.lock().await;
             metrics.start_time = Some(Utc::now());
         }
 
@@ -95,11 +96,11 @@ impl LocalKinesisDebugger {
 
         // Set end time and print summary
         {
-            let mut metrics = self.metrics.lock().unwrap();
+            let mut metrics = self.metrics.lock().await;
             metrics.end_time = Some(Utc::now());
         }
 
-        self.print_summary();
+        self.print_summary().await;
 
         result
     }
@@ -214,8 +215,8 @@ impl LocalKinesisDebugger {
     }
 
     /// Print debugging summary
-    fn print_summary(&self) {
-        let metrics = self.metrics.lock().unwrap();
+    async fn print_summary(&self) {
+        let metrics = self.metrics.lock().await;
 
         println!("\n========== Debug Session Summary ==========");
         if let (Some(start), Some(end)) = (metrics.start_time, metrics.end_time) {
@@ -247,7 +248,7 @@ impl LocalDebugProcessor {
     async fn process_record(&self, record: &Record) -> Result<()> {
         // Update total records count
         {
-            let mut metrics = self.metrics.lock().unwrap();
+            let mut metrics = self.metrics.lock().await;
             metrics.total_records += 1;
         }
 
@@ -267,7 +268,7 @@ impl LocalDebugProcessor {
             Ok(et) => et,
             Err(e) => {
                 error!("Failed to extract event type: {}", e);
-                let mut metrics = self.metrics.lock().unwrap();
+                let mut metrics = self.metrics.lock().await;
                 metrics.failed_records += 1;
                 return Err(e);
             }
@@ -275,7 +276,7 @@ impl LocalDebugProcessor {
 
         // Update event type metrics
         {
-            let mut metrics = self.metrics.lock().unwrap();
+            let mut metrics = self.metrics.lock().await;
             *metrics.event_type_counts.entry(event_type.to_string()).or_insert(0) += 1;
         }
 
@@ -297,7 +298,7 @@ impl LocalDebugProcessor {
             Ok(pb) => pb,
             Err(e) => {
                 error!("Failed to extract payload: {}", e);
-                let mut metrics = self.metrics.lock().unwrap();
+                let mut metrics = self.metrics.lock().await;
                 metrics.failed_records += 1;
                 return Err(e);
             }
@@ -310,21 +311,18 @@ impl LocalDebugProcessor {
         );
 
         // Lock the router and process the event
-        match self
-            .router
-            .lock()
-            .unwrap()
-            .process_bytes(event_type, &payload_bytes)
-            .await
-        {
+        let mut router = self.router.lock().await;
+        let process_result = router.process_bytes(event_type, &payload_bytes).await;
+
+        match process_result {
             Ok(_) => {
                 info!("Successfully processed event");
-                let mut metrics = self.metrics.lock().unwrap();
+                let mut metrics = self.metrics.lock().await;
                 metrics.processed_records += 1;
             }
             Err(e) => {
                 error!("Failed to process event: {}", e);
-                let mut metrics = self.metrics.lock().unwrap();
+                let mut metrics = self.metrics.lock().await;
                 metrics.failed_records += 1;
                 return Err(StreamProcessorError::Integration(e));
             }
