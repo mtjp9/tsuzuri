@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.254] - 2025-07-17
+
+### Changed
+
+- **BREAKING**: Event processors now require mutable references
+  - Changed `Executer::execute` and `ProcessorTrait::process_bytes` to take `&mut self`
+  - This allows processors to maintain internal state during event processing
+  - Updated `TypedEventRouter` and `ProcessorBasedEventRouter` accordingly
+  - Local Kinesis debugger now wraps router in `Arc<Mutex<>>` for thread-safe mutability
+
+### Fixed
+
+- Inverted index insertion now correctly checks both `pkey` AND `skey` existence
+  - Previously only checked `pkey`, which could cause issues with duplicate entries
+- Fixed parameter order in `InvertedIndexCommiter::commit` implementation
+  - Corrected order to `(aggregate_id, keyword)` from `(keyword, aggregate_id)`
+
 ## [0.1.253] - 2025-07-06
 
 ### Fixed
