@@ -12,7 +12,7 @@ where
 
 #[async_trait]
 pub trait Executer<E: IntegrationEvent>: Send + Sync + 'static {
-    async fn execute(&self, event: Envelope<E>) -> Result<()>;
+    async fn execute(&mut self, event: Envelope<E>) -> Result<()>;
 }
 
 #[cfg(test)]
@@ -65,7 +65,7 @@ mod tests {
 
     #[async_trait]
     impl Executer<TestIntegrationEvent> for MockExecuter {
-        async fn execute(&self, event: Envelope<TestIntegrationEvent>) -> Result<()> {
+        async fn execute(&mut self, event: Envelope<TestIntegrationEvent>) -> Result<()> {
             if self.should_fail {
                 return Err(crate::integration::error::IntegrationError::Database(
                     "Mock execution failed".to_string(),
@@ -78,7 +78,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_executer_success() {
-        let executer = MockExecuter::new(false);
+        let mut executer = MockExecuter::new(false);
         let event = TestIntegrationEvent {
             id: "test-id".to_string(),
             data: "test-data".to_string(),
@@ -98,7 +98,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_executer_failure() {
-        let executer = MockExecuter::new(true);
+        let mut executer = MockExecuter::new(true);
         let event = TestIntegrationEvent {
             id: "test-id".to_string(),
             data: "test-data".to_string(),

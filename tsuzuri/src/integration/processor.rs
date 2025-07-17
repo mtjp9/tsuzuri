@@ -30,7 +30,7 @@ where
     E: IntegrationEvent,
     EvtSerde: serde::Serde<E>,
 {
-    pub async fn process_bytes(&self, payload: &[u8]) -> Result<()> {
+    pub async fn process_bytes(&mut self, payload: &[u8]) -> Result<()> {
         let event = self.to_integration_event(payload)?;
         self.adapter.execute(event).await?;
         Ok(())
@@ -97,7 +97,7 @@ mod tests {
 
     #[async_trait]
     impl Executer<TestIntegrationEvent> for MockAdapter {
-        async fn execute(&self, event: Envelope<TestIntegrationEvent>) -> Result<()> {
+        async fn execute(&mut self, event: Envelope<TestIntegrationEvent>) -> Result<()> {
             if self.should_fail {
                 return Err(IntegrationError::Database("Mock adapter failed".to_string()));
             }
@@ -148,7 +148,7 @@ mod tests {
     async fn test_process_bytes_success() {
         let adapter = MockAdapter::new(false);
         let serde = MockSerde::new(false);
-        let processor = Processor::new(adapter.clone(), serde);
+        let mut processor = Processor::new(adapter.clone(), serde);
 
         let payload = b"test-payload";
         let result = processor.process_bytes(payload).await;
@@ -165,7 +165,7 @@ mod tests {
     async fn test_process_bytes_serde_failure() {
         let adapter = MockAdapter::new(false);
         let serde = MockSerde::new(true); // Will fail
-        let processor = Processor::new(adapter.clone(), serde);
+        let mut processor = Processor::new(adapter.clone(), serde);
 
         let payload = b"test-payload";
         let result = processor.process_bytes(payload).await;
@@ -184,7 +184,7 @@ mod tests {
     async fn test_process_bytes_adapter_failure() {
         let adapter = MockAdapter::new(true); // Will fail
         let serde = MockSerde::new(false);
-        let processor = Processor::new(adapter.clone(), serde);
+        let mut processor = Processor::new(adapter.clone(), serde);
 
         let payload = b"test-payload";
         let result = processor.process_bytes(payload).await;
