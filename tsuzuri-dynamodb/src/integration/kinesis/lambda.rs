@@ -6,7 +6,7 @@ use aws_lambda_events::kinesis::KinesisEvent;
 use lambda_runtime::LambdaEvent;
 
 pub async fn process_kinesis_lambda_event(
-    router: &ProcessorBasedEventRouter,
+    router: &mut ProcessorBasedEventRouter,
     event: LambdaEvent<KinesisEvent>,
 ) -> Result<()> {
     for record in event.payload.records {
@@ -15,7 +15,7 @@ pub async fn process_kinesis_lambda_event(
     Ok(())
 }
 
-async fn process_single_record(router: &ProcessorBasedEventRouter, data: &[u8]) -> Result<()> {
+async fn process_single_record(router: &mut ProcessorBasedEventRouter, data: &[u8]) -> Result<()> {
     let stream_record = extract_stream_record(data)?;
     let attribute_values = stream_record.new_image.into_inner();
 
@@ -67,7 +67,7 @@ mod tests {
 
     #[async_trait]
     impl crate::integration::event_type_router::ProcessorTrait for Arc<MockProcessor> {
-        async fn process_bytes(&self, payload: &[u8]) -> IntegrationResult<()> {
+        async fn process_bytes(&mut self, payload: &[u8]) -> IntegrationResult<()> {
             if self.should_fail {
                 return Err(tsuzuri::integration::error::IntegrationError::Database(
                     "Mock error".to_string(),
@@ -189,11 +189,11 @@ mod tests {
             Box::new(mock_processor.clone()) as Box<dyn crate::integration::event_type_router::ProcessorTrait>,
         );
 
-        let router = ProcessorBasedEventRouter { routes };
+        let mut router = ProcessorBasedEventRouter { routes };
 
         let stream_data = create_dynamodb_stream_data("TestEvent", b"test payload");
 
-        let result = process_single_record(&router, &stream_data).await;
+        let result = process_single_record(&mut router, &stream_data).await;
         assert!(result.is_ok());
 
         // Verify the mock was called
@@ -216,7 +216,7 @@ mod tests {
             Box::new(mock_processor.clone()) as Box<dyn crate::integration::event_type_router::ProcessorTrait>,
         );
 
-        let router = ProcessorBasedEventRouter { routes };
+        let mut router = ProcessorBasedEventRouter { routes };
 
         // Create test data
         let stream_data1 = create_dynamodb_stream_data("TestEvent", b"payload1");
@@ -226,7 +226,7 @@ mod tests {
 
         let lambda_event = create_test_lambda_event(records);
 
-        let result = process_kinesis_lambda_event(&router, lambda_event).await;
+        let result = process_kinesis_lambda_event(&mut router, lambda_event).await;
         assert!(result.is_ok());
 
         // Verify both records were processed
@@ -250,13 +250,13 @@ mod tests {
             Box::new(mock_processor) as Box<dyn crate::integration::event_type_router::ProcessorTrait>,
         );
 
-        let router = ProcessorBasedEventRouter { routes };
+        let mut router = ProcessorBasedEventRouter { routes };
 
         let stream_data = create_dynamodb_stream_data("TestEvent", b"payload");
         let records = vec![create_kinesis_record(stream_data)];
         let lambda_event = create_test_lambda_event(records);
 
-        let result = process_kinesis_lambda_event(&router, lambda_event).await;
+        let result = process_kinesis_lambda_event(&mut router, lambda_event).await;
         assert!(result.is_err());
     }
 
@@ -268,7 +268,7 @@ mod tests {
         });
 
         let routes: HashMap<String, Box<dyn crate::integration::event_type_router::ProcessorTrait>> = HashMap::new();
-        let router = ProcessorBasedEventRouter { routes };
+        let mut router = ProcessorBasedEventRouter { routes };
 
         // Create stream data without event_type field
         let mut new_image = HashMap::new();
@@ -293,7 +293,7 @@ mod tests {
 
         let stream_data = serde_json::to_vec(&wrapper).unwrap();
 
-        let result = process_single_record(&router, &stream_data).await;
+        let result = process_single_record(&mut router, &stream_data).await;
         assert!(result.is_err());
         match result.unwrap_err() {
             StreamProcessorError::InvalidData(msg) => {

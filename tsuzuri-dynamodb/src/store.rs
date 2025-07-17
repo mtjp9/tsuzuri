@@ -399,7 +399,7 @@ impl DynamoDB {
             .table_name(&self.config.table_names.inverted_index)
             .item("pkey", pkey.clone())
             .item("skey", skey.clone())
-            .condition_expression("attribute_not_exists(pkey)")
+            .condition_expression("attribute_not_exists(pkey) AND attribute_not_exists(skey)")
             .build()
             .map_err(|e| DynamoAggregateError::BuilderError(e.to_string()))?;
         let write_item = TransactWriteItem::builder().put(put).build();
@@ -577,7 +577,7 @@ impl AggregateIdsLoader for DynamoDB {
 #[async_trait]
 impl InvertedIndexCommiter for DynamoDB {
     async fn commit(&self, aggregate_id: &str, keyword: &str) -> Result<(), PersistenceError> {
-        self.insert_inverted_index(keyword, aggregate_id).await?;
+        self.insert_inverted_index(aggregate_id, keyword).await?;
         Ok(())
     }
 }

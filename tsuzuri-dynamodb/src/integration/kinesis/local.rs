@@ -17,7 +17,7 @@ use tracing::{debug, error, info};
 /// Local Kinesis debugger for testing and debugging DynamoDB stream events
 pub struct LocalKinesisDebugger {
     kinesis_client: KinesisClient,
-    router: Arc<ProcessorBasedEventRouter>,
+    router: Arc<Mutex<ProcessorBasedEventRouter>>,
     stream_name: String,
     metrics: Arc<Mutex<DebugMetrics>>,
     config: DebugConfig,
@@ -71,7 +71,7 @@ impl LocalKinesisDebugger {
     ) -> Self {
         Self {
             kinesis_client,
-            router: Arc::new(router),
+            router: Arc::new(Mutex::new(router)),
             stream_name,
             metrics: Arc::new(Mutex::new(DebugMetrics::default())),
             config,
@@ -238,7 +238,7 @@ impl LocalKinesisDebugger {
 
 /// Processor wrapper for local debugging
 struct LocalDebugProcessor {
-    router: Arc<ProcessorBasedEventRouter>,
+    router: Arc<Mutex<ProcessorBasedEventRouter>>,
     metrics: Arc<Mutex<DebugMetrics>>,
     config: DebugConfig,
 }
@@ -309,7 +309,14 @@ impl LocalDebugProcessor {
             event_type, record.sequence_number
         );
 
-        match self.router.process_bytes(event_type, &payload_bytes).await {
+        // Lock the router and process the event
+        match self
+            .router
+            .lock()
+            .unwrap()
+            .process_bytes(event_type, &payload_bytes)
+            .await
+        {
             Ok(_) => {
                 info!("Successfully processed event");
                 let mut metrics = self.metrics.lock().unwrap();

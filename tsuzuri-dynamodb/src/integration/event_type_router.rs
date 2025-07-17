@@ -52,12 +52,12 @@ impl<E> Executer<E> for TypedEventRouter<E>
 where
     E: IntegrationEvent + Send + Sync,
 {
-    async fn execute(&self, event: Envelope<E>) -> Result<()> {
+    async fn execute(&mut self, event: Envelope<E>) -> Result<()> {
         // Extract event name from the envelope message
         let event_name = event.message.name();
 
         // Find the appropriate executer
-        match self.routes.get(event_name) {
+        match self.routes.get_mut(event_name) {
             Some(executer) => executer.execute(event).await,
             None => Ok(()),
         }
@@ -73,7 +73,7 @@ pub struct ProcessorBasedEventRouter {
 /// Trait to abstract over different processor types
 #[async_trait]
 pub trait ProcessorTrait: Send + Sync {
-    async fn process_bytes(&self, payload: &[u8]) -> Result<()>;
+    async fn process_bytes(&mut self, payload: &[u8]) -> Result<()>;
 }
 
 impl ProcessorBasedEventRouter {
@@ -97,14 +97,14 @@ impl ProcessorBasedEventRouter {
     /// Process bytes through appropriate processor
     /// Each processor will handle its own deserialization using its own Serde implementation
     /// Uses prefix matching: "ProjectIntegrationEvent" matches "ProjectIntegrationEventBodyChanged"
-    pub async fn process_bytes(&self, event_name: &str, payload: &[u8]) -> Result<()> {
+    pub async fn process_bytes(&mut self, event_name: &str, payload: &[u8]) -> Result<()> {
         // First try exact match
-        if let Some(processor) = self.routes.get(event_name) {
+        if let Some(processor) = self.routes.get_mut(event_name) {
             return processor.process_bytes(payload).await;
         }
 
         // Then try prefix match
-        for (registered_prefix, processor) in &self.routes {
+        for (registered_prefix, processor) in &mut self.routes {
             if event_name.starts_with(registered_prefix) {
                 return processor.process_bytes(payload).await;
             }
@@ -132,7 +132,7 @@ where
     E: IntegrationEvent + Send + Sync,
     EvtSerde: Serde<E> + Send + Sync,
 {
-    async fn process_bytes(&self, payload: &[u8]) -> Result<()> {
+    async fn process_bytes(&mut self, payload: &[u8]) -> Result<()> {
         self.processor.process_bytes(payload).await
     }
 }
@@ -218,7 +218,7 @@ mod tests {
     where
         E: IntegrationEvent + Send + Sync + Clone,
     {
-        async fn execute(&self, event: Envelope<E>) -> Result<()> {
+        async fn execute(&mut self, event: Envelope<E>) -> Result<()> {
             if self.should_fail {
                 return Err(IntegrationError::Database("Mock executer failed".to_string()));
             }
@@ -237,7 +237,7 @@ mod tests {
 
     #[async_trait]
     impl ProcessorTrait for Arc<MockProcessor> {
-        async fn process_bytes(&self, payload: &[u8]) -> Result<()> {
+        async fn process_bytes(&mut self, payload: &[u8]) -> Result<()> {
             if self.should_fail {
                 return Err(IntegrationError::Database("Mock processor failed".to_string()));
             }
@@ -270,7 +270,7 @@ mod tests {
     #[tokio::test]
     async fn test_typed_event_router_execute_registered_event() {
         let executer = MockExecuter::<TestIntegrationEvent>::new(false);
-        let router = TypedEventRouter::new().route("TestIntegrationEvent", Box::new(executer));
+        let mut router = TypedEventRouter::new().route("TestIntegrationEvent", Box::new(executer));
 
         let event = TestIntegrationEvent {
             id: "test-id".to_string(),
@@ -287,7 +287,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_typed_event_router_execute_unregistered_event() {
-        let router: TypedEventRouter<TestIntegrationEvent> = TypedEventRouter::new();
+        let mut router: TypedEventRouter<TestIntegrationEvent> = TypedEventRouter::new();
 
         let event = TestIntegrationEvent {
             id: "test-id".to_string(),
@@ -303,7 +303,7 @@ mod tests {
     #[tokio::test]
     async fn test_typed_event_router_execute_with_failure() {
         let executer = MockExecuter::<TestIntegrationEvent>::new(true);
-        let router = TypedEventRouter::new().route("TestIntegrationEvent", Box::new(executer));
+        let mut router = TypedEventRouter::new().route("TestIntegrationEvent", Box::new(executer));
 
         let event = TestIntegrationEvent {
             id: "test-id".to_string(),
@@ -344,7 +344,7 @@ mod tests {
             Box::new(mock_processor.clone()) as Box<dyn ProcessorTrait>,
         );
 
-        let router = ProcessorBasedEventRouter { routes };
+        let mut router = ProcessorBasedEventRouter { routes };
 
         let payload = b"test payload";
         let result = router.process_bytes("TestEvent", payload).await;
@@ -368,7 +368,7 @@ mod tests {
             Box::new(mock_processor.clone()) as Box<dyn ProcessorTrait>,
         );
 
-        let router = ProcessorBasedEventRouter { routes };
+        let mut router = ProcessorBasedEventRouter { routes };
 
         let payload = b"test payload";
         let result = router
@@ -383,7 +383,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_processor_based_event_router_no_match() {
-        let router = ProcessorBasedEventRouter::new();
+        let mut router = ProcessorBasedEventRouter::new();
 
         let payload = b"test payload";
         let result = router.process_bytes("UnknownEvent", payload).await;
@@ -404,7 +404,7 @@ mod tests {
             Box::new(Arc::new(mock_processor)) as Box<dyn ProcessorTrait>,
         );
 
-        let router = ProcessorBasedEventRouter { routes };
+        let mut router = ProcessorBasedEventRouter { routes };
 
         let payload = b"test payload";
         let result = router.process_bytes("TestEvent", payload).await;
@@ -434,7 +434,7 @@ mod tests {
             Box::new(prefix_processor.clone()) as Box<dyn ProcessorTrait>,
         );
 
-        let router = ProcessorBasedEventRouter { routes };
+        let mut router = ProcessorBasedEventRouter { routes };
 
         let payload = b"test payload";
         let result = router.process_bytes("TestEvent", payload).await;
