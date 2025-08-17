@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.282] - 2025-08-17
+
+### Changed
+
+- **BREAKING**: Changed `AggregateRoot::handle` to return `Vec<DomainEvent>` instead of a single event, enabling aggregates to emit multiple events from a single command
+
 ## [0.1.281] - 2025-07-17
 
 ### Changed

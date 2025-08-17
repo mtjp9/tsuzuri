@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.255] - 2025-08-17
+
+### Changed
+
+- Updated to support tsuzuri v0.1.282's breaking change
+  - `AggregateRoot::handle` now returns `Vec<DomainEvent>` instead of a single event
+  - Updated command repository implementation to handle multiple events from a single command
+
 ## [0.1.254] - 2025-07-17
 
 ### Changed
