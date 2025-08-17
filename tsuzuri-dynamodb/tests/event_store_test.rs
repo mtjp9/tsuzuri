@@ -214,7 +214,7 @@ async fn test_concurrent_event_persistence() {
 
     // Persist first event
     store
-        .persist(&[event1.clone()], &[], None)
+        .persist(std::slice::from_ref(&event1), &[], None)
         .await
         .expect("Failed to persist first event");
 
