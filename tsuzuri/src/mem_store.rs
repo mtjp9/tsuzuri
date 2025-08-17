@@ -385,8 +385,8 @@ mod tests {
             &self.id
         }
 
-        fn handle(&mut self, _cmd: Self::Command) -> Result<Self::DomainEvent, Self::Error> {
-            Ok(TestEvent { id: EventIdType::new() })
+        fn handle(&mut self, _cmd: Self::Command) -> Result<Vec<Self::DomainEvent>, Self::Error> {
+            Ok(vec![TestEvent { id: EventIdType::new() }])
         }
 
         fn apply(&mut self, _event: Self::DomainEvent) {}

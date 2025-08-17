@@ -125,13 +125,13 @@ impl AggregateRoot for TestAggregate {
         &self.id
     }
 
-    fn handle(&mut self, cmd: Self::Command) -> Result<Self::DomainEvent, Self::Error> {
+    fn handle(&mut self, cmd: Self::Command) -> Result<Vec<Self::DomainEvent>, Self::Error> {
         match cmd {
-            TestCommand::Create(c) => Ok(TestDomainEvent::Created(TestAggregateCreated {
+            TestCommand::Create(c) => Ok(vec![TestDomainEvent::Created(TestAggregateCreated {
                 id: c.id,
                 name: c.name,
-            })),
-            TestCommand::Update(u) => Ok(TestDomainEvent::Updated(TestAggregateUpdated { value: u.value })),
+            })]),
+            TestCommand::Update(u) => Ok(vec![TestDomainEvent::Updated(TestAggregateUpdated { value: u.value })]),
         }
     }
 

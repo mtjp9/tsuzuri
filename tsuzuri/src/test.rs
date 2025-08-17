@@ -63,13 +63,10 @@ impl<A: AggregateRoot> WhenPhase<A> {
     pub fn when(mut self, command: A::Command) -> ThenPhase<A> {
         let result = self.aggregate.handle(command);
 
-        // Convert single event result to Vec for consistent handling
-        let vec_result = result.map(|event| vec![event]);
-
         ThenPhase {
             aggregate: self.aggregate,
             initial_events: self.initial_events,
-            result: vec_result,
+            result,
         }
     }
 }
@@ -317,13 +314,13 @@ mod tests {
             &self.id
         }
 
-        fn handle(&mut self, command: Self::Command) -> Result<Self::DomainEvent, Self::Error> {
+        fn handle(&mut self, command: Self::Command) -> Result<Vec<Self::DomainEvent>, Self::Error> {
             match command {
                 TestCommand::Create { id } => {
                     if self.is_active {
                         return Err(TestError::AlreadyCreated);
                     }
-                    Ok(TestEvent::Created { id })
+                    Ok(vec![TestEvent::Created { id }])
                 }
                 TestCommand::UpdateValue { value } => {
                     if !self.is_active {
@@ -332,13 +329,13 @@ mod tests {
                     if value < 0 {
                         return Err(TestError::InvalidValue);
                     }
-                    Ok(TestEvent::ValueUpdated { value })
+                    Ok(vec![TestEvent::ValueUpdated { value }])
                 }
                 TestCommand::Deactivate => {
                     if !self.is_active {
                         return Err(TestError::NotActive);
                     }
-                    Ok(TestEvent::Deactivated)
+                    Ok(vec![TestEvent::Deactivated])
                 }
             }
         }

@@ -44,9 +44,9 @@ impl<T: AggregateRoot> VersionedAggregate<T> {
         self.seq_nr = seq_nr;
     }
 
-    pub fn handle(&mut self, cmd: T::Command) -> Result<T::DomainEvent, T::Error> {
-        let event = self.aggregate.handle(cmd)?;
-        Ok(event)
+    pub fn handle(&mut self, cmd: T::Command) -> Result<Vec<T::DomainEvent>, T::Error> {
+        let events = self.aggregate.handle(cmd)?;
+        Ok(events)
     }
 
     pub fn apply(&mut self, event: T::DomainEvent) {
@@ -200,16 +200,16 @@ mod tests {
             &self.id
         }
 
-        fn handle(&mut self, cmd: Self::Command) -> Result<Self::DomainEvent, Self::Error> {
+        fn handle(&mut self, cmd: Self::Command) -> Result<Vec<Self::DomainEvent>, Self::Error> {
             match cmd {
-                TestCommand::DoSomething { .. } => Ok(TestEvent::SomethingHappened {
+                TestCommand::DoSomething { .. } => Ok(vec![TestEvent::SomethingHappened {
                     id: EventIdType::new(),
                     data: "something".to_string(),
-                }),
-                TestCommand::DoSomethingElse { .. } => Ok(TestEvent::SomethingElseHappened {
+                }]),
+                TestCommand::DoSomethingElse { .. } => Ok(vec![TestEvent::SomethingElseHappened {
                     id: EventIdType::new(),
                     data: "something else".to_string(),
-                }),
+                }]),
                 TestCommand::CausesError { .. } => Err(TestError::SomethingWentWrong),
             }
         }
@@ -295,11 +295,13 @@ mod tests {
         let cmd1 = TestCommand::DoSomething { id: *versioned.id() };
         let cmd2 = TestCommand::DoSomethingElse { id: *versioned.id() };
 
-        let event1 = versioned.handle(cmd1).unwrap();
-        let event2 = versioned.handle(cmd2).unwrap();
+        let events1 = versioned.handle(cmd1).unwrap();
+        let events2 = versioned.handle(cmd2).unwrap();
 
-        assert!(matches!(event1, TestEvent::SomethingHappened { .. }));
-        assert!(matches!(event2, TestEvent::SomethingElseHappened { .. }));
+        assert_eq!(events1.len(), 1);
+        assert_eq!(events2.len(), 1);
+        assert!(matches!(events1[0], TestEvent::SomethingHappened { .. }));
+        assert!(matches!(events2[0], TestEvent::SomethingElseHappened { .. }));
 
         // Aggregate state should still be initial (events not applied)
         assert_eq!(versioned.aggregate.state, "initial");
@@ -352,8 +354,8 @@ mod tests {
                 TestCommand::DoSomethingElse { id: *versioned.id() }
             };
 
-            let event = versioned.handle(cmd).unwrap();
-            events.push(event);
+            let cmd_events = versioned.handle(cmd).unwrap();
+            events.extend(cmd_events);
         }
 
         assert_eq!(events.len(), 3);

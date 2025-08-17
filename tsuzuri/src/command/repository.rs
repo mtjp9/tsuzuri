@@ -56,7 +56,7 @@ where
     async fn commit(
         &self,
         versioned_aggregate: &VersionedAggregate<T>,
-        event: Envelope<T::DomainEvent>,
+        events: Vec<Envelope<T::DomainEvent>>,
     ) -> Result<(), PersistenceError>;
 }
 
@@ -109,37 +109,68 @@ where
     async fn prepare_events(
         &self,
         versioned_aggregate: &VersionedAggregate<T>,
-        event: Envelope<T::DomainEvent>,
-    ) -> Result<(SerializedDomainEvent, Vec<SerializedIntegrationEvent>), PersistenceError> {
-        let domain_event = event.message;
-        let event_id = domain_event.id();
-        let aggregate_id = versioned_aggregate.id();
-        let aggregate_type = T::TYPE;
-        let event_type = domain_event.event_type();
-        let seq_nr = versioned_aggregate.seq_nr();
-        let serialized_event = SerializedDomainEvent::new(
-            event_id.to_string(),
+        events: Vec<Envelope<T::DomainEvent>>,
+    ) -> Result<(Vec<SerializedDomainEvent>, Vec<SerializedIntegrationEvent>), PersistenceError> {
+        let aggregate_id = versioned_aggregate.id().to_string();
+        let aggregate_type = T::TYPE.to_string();
+        let initial_seq_nr = versioned_aggregate.seq_nr();
+
+        let mut serialized_events = Vec::with_capacity(events.len());
+        let mut serialized_integration_events = Vec::new();
+
+        for (index, event) in events.into_iter().enumerate() {
+            let seq_nr = initial_seq_nr.saturating_add(index + 1);
+
+            let serialized_domain_event =
+                self.serialize_domain_event(&event.message, &aggregate_id, &aggregate_type, seq_nr, event.metadata)?;
+            serialized_events.push(serialized_domain_event);
+
+            let integration_events =
+                self.serialize_integration_events(event.message, &aggregate_id, &aggregate_type)?;
+            serialized_integration_events.extend(integration_events);
+        }
+
+        Ok((serialized_events, serialized_integration_events))
+    }
+
+    fn serialize_domain_event(
+        &self,
+        domain_event: &T::DomainEvent,
+        aggregate_id: &str,
+        aggregate_type: &str,
+        seq_nr: usize,
+        metadata: impl serde::Serialize,
+    ) -> Result<SerializedDomainEvent, PersistenceError> {
+        Ok(SerializedDomainEvent::new(
+            domain_event.id().to_string(),
             aggregate_id.to_string(),
-            seq_nr.saturating_add(1),
+            seq_nr,
             aggregate_type.to_string(),
-            event_type.to_string(),
-            self.domain_event_serde.serialize(&domain_event)?,
-            serde_json::to_value(event.metadata)?,
-        );
-        let serialized_integration_events = domain_event
+            domain_event.event_type().to_string(),
+            self.domain_event_serde.serialize(domain_event)?,
+            serde_json::to_value(metadata)?,
+        ))
+    }
+
+    fn serialize_integration_events(
+        &self,
+        domain_event: T::DomainEvent,
+        aggregate_id: &str,
+        aggregate_type: &str,
+    ) -> Result<Vec<SerializedIntegrationEvent>, PersistenceError> {
+        domain_event
             .into_integration_events()
             .into_iter()
             .map(|integration_event| {
                 Ok(SerializedIntegrationEvent::new(
                     integration_event.id().to_string(),
                     aggregate_id.to_string(),
-                    T::TYPE.to_string(),
+                    aggregate_type.to_string(),
                     integration_event.event_type().to_string(),
                     self.integration_event_serde.serialize(&integration_event)?,
                 ))
             })
-            .collect::<Result<Vec<_>, PersistenceError>>()?;
-        Ok((serialized_event, serialized_integration_events))
+            .collect()
     }
 
     async fn prepare_snapshot_if_needed(
@@ -291,14 +322,14 @@ where
     async fn commit(
         &self,
         versioned_aggregate: &VersionedAggregate<T>,
-        event: Envelope<T::DomainEvent>,
+        events: Vec<Envelope<T::DomainEvent>>,
     ) -> Result<(), PersistenceError> {
-        let (serialized_domain_event, serialized_integration_events) =
-            self.prepare_events(versioned_aggregate, event).await?;
+        let (serialized_domain_events, serialized_integration_events) =
+            self.prepare_events(versioned_aggregate, events).await?;
         let serialized_snapshot = self.prepare_snapshot_if_needed(versioned_aggregate).await?;
         self.store
             .persist(
-                &[serialized_domain_event],
+                &serialized_domain_events,
                 serialized_integration_events.as_ref(),
                 serialized_snapshot.as_ref(),
             )

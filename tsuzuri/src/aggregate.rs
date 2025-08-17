@@ -23,7 +23,7 @@ pub trait AggregateRoot: fmt::Debug + Send + Sync + 'static {
     fn id(&self) -> &AggregateId<Self::ID>;
 
     /// Handles a command and returns a domain event or an error.
-    fn handle(&mut self, cmd: Self::Command) -> Result<Self::DomainEvent, Self::Error>;
+    fn handle(&mut self, cmd: Self::Command) -> Result<Vec<Self::DomainEvent>, Self::Error>;
 
     /// Applies changes to the aggregate's state.
     fn apply(&mut self, event: Self::DomainEvent);
@@ -375,34 +375,34 @@ mod tests {
             &self.id
         }
 
-        fn handle(&mut self, cmd: Self::Command) -> Result<Self::DomainEvent, Self::Error> {
+        fn handle(&mut self, cmd: Self::Command) -> Result<Vec<Self::DomainEvent>, Self::Error> {
             match cmd {
                 OrderCommand::Create {
                     id: _,
                     user_id,
                     total_amount,
-                } => Ok(OrderEvent::Created {
+                } => Ok(vec![OrderEvent::Created {
                     id: EventIdType::new(),
                     user_id,
                     total_amount,
-                }),
+                }]),
                 OrderCommand::Confirm { id: _ } => {
                     if self.status != OrderStatus::Pending {
                         return Err(OrderError::InvalidStateTransition);
                     }
-                    Ok(OrderEvent::Confirmed { id: EventIdType::new() })
+                    Ok(vec![OrderEvent::Confirmed { id: EventIdType::new() }])
                 }
                 OrderCommand::Ship { id: _ } => {
                     if self.status != OrderStatus::Confirmed {
                         return Err(OrderError::InvalidStateTransition);
                     }
-                    Ok(OrderEvent::Shipped { id: EventIdType::new() })
+                    Ok(vec![OrderEvent::Shipped { id: EventIdType::new() }])
                 }
                 OrderCommand::Deliver { id: _ } => {
                     if self.status != OrderStatus::Shipped {
                         return Err(OrderError::InvalidStateTransition);
                     }
-                    Ok(OrderEvent::Delivered { id: EventIdType::new() })
+                    Ok(vec![OrderEvent::Delivered { id: EventIdType::new() }])
                 }
             }
         }
@@ -459,28 +459,28 @@ mod tests {
             &self.id
         }
 
-        fn handle(&mut self, cmd: Self::Command) -> Result<Self::DomainEvent, Self::Error> {
+        fn handle(&mut self, cmd: Self::Command) -> Result<Vec<Self::DomainEvent>, Self::Error> {
             match cmd {
                 UserCommand::Create { id: _, name, email } => {
                     if !email.contains('@') {
                         return Err(UserError::InvalidEmail);
                     }
-                    Ok(UserEvent::Created {
+                    Ok(vec![UserEvent::Created {
                         id: EventIdType::new(),
                         name,
                         email,
-                    })
+                    }])
                 }
                 UserCommand::UpdateEmail { id: _, email } => {
                     if !email.contains('@') {
                         return Err(UserError::InvalidEmail);
                     }
                     let old_email = self.email.clone();
-                    Ok(UserEvent::EmailUpdated {
+                    Ok(vec![UserEvent::EmailUpdated {
                         id: EventIdType::new(),
                         old_email,
                         new_email: email,
-                    })
+                    }])
                 }
             }
         }
