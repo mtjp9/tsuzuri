@@ -1,4 +1,4 @@
-use crate::{domain_event::DomainEvent, message};
+use crate::message;
 use std::fmt;
 
 /// Marker trait for integration events that communicate changes to external systems.
@@ -6,13 +6,6 @@ use std::fmt;
 pub trait IntegrationEvent: fmt::Debug + message::Message + Send + Sync + 'static {
     fn id(&self) -> String;
     fn event_type(&self) -> &'static str;
-}
-
-pub trait IntoIntegrationEvents: DomainEvent {
-    type IntegrationEvent: IntegrationEvent;
-    type IntoIter: IntoIterator<Item = Self::IntegrationEvent>;
-
-    fn into_integration_events(self) -> Self::IntoIter;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

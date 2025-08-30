@@ -66,13 +66,8 @@ impl<T: AggregateRoot> VersionedAggregate<T> {
 mod tests {
     use super::*;
     use crate::{
-        aggregate_id::HasIdPrefix,
-        command::Command,
-        domain_event::DomainEvent,
-        event_id::EventIdType,
-        integration_event::{self, IntegrationEvent},
-        message,
-        test::TestFramework,
+        aggregate_id::HasIdPrefix, command::Command, domain_event::DomainEvent, event_id::EventIdType,
+        integration_event::IntegrationEvent, message, test::TestFramework,
     };
 
     // Test ID types
@@ -138,16 +133,8 @@ mod tests {
         }
     }
 
-    impl integration_event::IntoIntegrationEvents for TestEvent {
-        type IntegrationEvent = TestIntegrationEvent;
-        type IntoIter = Vec<TestIntegrationEvent>;
-
-        fn into_integration_events(self) -> Self::IntoIter {
-            vec![TestIntegrationEvent]
-        }
-    }
-
     // Test integration event
+    #[allow(dead_code)]
     #[derive(Debug, Clone)]
     struct TestIntegrationEvent;
 
@@ -186,7 +173,6 @@ mod tests {
         type ID = TestId;
         type Command = TestCommand;
         type DomainEvent = TestEvent;
-        type IntegrationEvent = TestIntegrationEvent;
         type Error = TestError;
 
         fn init(id: AggregateId<Self::ID>) -> Self {

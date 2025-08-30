@@ -66,7 +66,7 @@ pub trait Persister: Send + Sync + 'static {
     async fn persist(
         &self,
         domain_events: &[SerializedDomainEvent],
-        integration_events: &[SerializedIntegrationEvent],
+        integration_events: Option<&[SerializedIntegrationEvent]>,
         snapshot_update: Option<&PersistedSnapshot>,
     ) -> Result<(), PersistenceError>;
 }
@@ -88,7 +88,7 @@ mod tests {
         command::Command,
         domain_event::DomainEvent,
         event_id::EventIdType,
-        integration_event::{self, IntegrationEvent},
+        integration_event::IntegrationEvent,
         message,
     };
     use futures::stream::{self, StreamExt};
@@ -146,16 +146,8 @@ mod tests {
         }
     }
 
-    impl integration_event::IntoIntegrationEvents for TestEvent {
-        type IntegrationEvent = TestIntegrationEvent;
-        type IntoIter = Vec<TestIntegrationEvent>;
-
-        fn into_integration_events(self) -> Self::IntoIter {
-            vec![TestIntegrationEvent]
-        }
-    }
-
     // Test integration event
+    #[allow(dead_code)]
     #[derive(Debug, Clone)]
     struct TestIntegrationEvent;
 
@@ -194,7 +186,6 @@ mod tests {
         type ID = TestId;
         type Command = TestCommand;
         type DomainEvent = TestEvent;
-        type IntegrationEvent = TestIntegrationEvent;
         type Error = TestError;
 
         fn init(id: AggregateId<Self::ID>) -> Self {
@@ -261,7 +252,7 @@ mod tests {
         async fn persist(
             &self,
             domain_events: &[SerializedDomainEvent],
-            integration_events: &[SerializedIntegrationEvent],
+            integration_events: Option<&[SerializedIntegrationEvent]>,
             snapshot_update: Option<&PersistedSnapshot>,
         ) -> Result<(), PersistenceError> {
             // Store domain events
@@ -275,9 +266,11 @@ mod tests {
             }
 
             // Store integration events
-            if !integration_events.is_empty() {
-                let mut int_events = self.integration_events.lock().unwrap();
-                int_events.extend(integration_events.iter().cloned());
+            if let Some(events) = integration_events {
+                if !events.is_empty() {
+                    let mut int_events = self.integration_events.lock().unwrap();
+                    int_events.extend(events.iter().cloned());
+                }
             }
 
             // Update snapshot if provided
@@ -381,7 +374,7 @@ mod tests {
                 ),
             ];
 
-            store.persist(&events, &[], None).await.unwrap();
+            store.persist(&events, None, None).await.unwrap();
 
             // Test streaming all events
             let mut stream = store.stream_events::<TestAggregate>("test-agg-1", SequenceSelect::All);
@@ -439,7 +432,7 @@ mod tests {
             };
 
             let result = store
-                .persist(&domain_events, &integration_events, Some(&snapshot))
+                .persist(&domain_events, Some(&integration_events), Some(&snapshot))
                 .await;
 
             assert!(result.is_ok());
@@ -477,7 +470,7 @@ mod tests {
                 version: 5,
             };
 
-            store.persist(&[], &[], Some(&snapshot)).await.unwrap();
+            store.persist(&[], None, Some(&snapshot)).await.unwrap();
 
             // Test getting existing snapshot
             let result = store.get_snapshot::<TestAggregate>("test-agg-1").await;
@@ -510,7 +503,7 @@ mod tests {
             }
 
             // Persist events in batches
-            store.persist(&all_events[0..5], &[], None).await.unwrap();
+            store.persist(&all_events[0..5], None, None).await.unwrap();
 
             // Check if snapshot is needed
             let snapshot_at = store.commit_snapshot_with_addl_events(0, 5);
@@ -525,7 +518,7 @@ mod tests {
                 version: 1,
             };
 
-            store.persist(&all_events[5..10], &[], Some(&snapshot)).await.unwrap();
+            store.persist(&all_events[5..10], None, Some(&snapshot)).await.unwrap();
 
             // Verify we can stream all events
             let mut stream = store.stream_events::<TestAggregate>("test-agg-1", SequenceSelect::All);

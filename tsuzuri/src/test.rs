@@ -170,7 +170,7 @@ mod tests {
         command::Command,
         domain_event::DomainEvent,
         event_id::EventIdType,
-        integration_event::{IntegrationEvent, IntoIntegrationEvents},
+        integration_event::IntegrationEvent,
         message::Message,
         AggregateRoot,
     };
@@ -248,6 +248,7 @@ mod tests {
     }
 
     // Integration event for test
+    #[allow(dead_code)]
     #[derive(Debug, Clone)]
     struct TestIntegrationEvent {
         #[allow(dead_code)]
@@ -270,20 +271,6 @@ mod tests {
         }
     }
 
-    impl IntoIntegrationEvents for TestEvent {
-        type IntegrationEvent = TestIntegrationEvent;
-        type IntoIter = std::vec::IntoIter<Self::IntegrationEvent>;
-
-        fn into_integration_events(self) -> Self::IntoIter {
-            let message = match &self {
-                TestEvent::Created { id } => format!("Created with id: {id}"),
-                TestEvent::ValueUpdated { value } => format!("Updated value to: {value}"),
-                TestEvent::Deactivated => "Deactivated".to_string(),
-            };
-            vec![TestIntegrationEvent { message }].into_iter()
-        }
-    }
-
     #[derive(Debug, thiserror::Error)]
     enum TestError {
         #[error("Already created")]
@@ -299,7 +286,6 @@ mod tests {
         type ID = TestId;
         type Command = TestCommand;
         type DomainEvent = TestEvent;
-        type IntegrationEvent = TestIntegrationEvent;
         type Error = TestError;
 
         fn init(id: AggregateId<Self::ID>) -> Self {

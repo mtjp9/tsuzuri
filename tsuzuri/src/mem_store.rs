@@ -62,7 +62,7 @@ impl Persister for MemoryEventStore {
     async fn persist(
         &self,
         domain_events: &[SerializedDomainEvent],
-        integration_events: &[SerializedIntegrationEvent],
+        integration_events: Option<&[SerializedIntegrationEvent]>,
         snapshot_update: Option<&PersistedSnapshot>,
     ) -> Result<(), PersistenceError> {
         // Store domain events
@@ -76,9 +76,11 @@ impl Persister for MemoryEventStore {
         }
 
         // Store integration events
-        if !integration_events.is_empty() {
-            let mut int_events = self.integration_events.write().unwrap();
-            int_events.extend(integration_events.iter().cloned());
+        if let Some(events) = integration_events {
+            if !events.is_empty() {
+                let mut int_events = self.integration_events.write().unwrap();
+                int_events.extend(events.iter().cloned());
+            }
         }
 
         // Update snapshot if provided
@@ -222,7 +224,7 @@ impl Persister for MemoryStore {
     async fn persist(
         &self,
         domain_events: &[SerializedDomainEvent],
-        integration_events: &[SerializedIntegrationEvent],
+        integration_events: Option<&[SerializedIntegrationEvent]>,
         snapshot_update: Option<&PersistedSnapshot>,
     ) -> Result<(), PersistenceError> {
         self.event_store
@@ -271,7 +273,7 @@ mod tests {
         command::Command,
         domain_event::DomainEvent,
         event_id::EventIdType,
-        integration_event::{self, IntegrationEvent},
+        integration_event::IntegrationEvent,
         message,
     };
     use serde_json::json;
@@ -326,16 +328,8 @@ mod tests {
         }
     }
 
-    impl integration_event::IntoIntegrationEvents for TestEvent {
-        type IntegrationEvent = TestIntegrationEvent;
-        type IntoIter = Vec<TestIntegrationEvent>;
-
-        fn into_integration_events(self) -> Self::IntoIter {
-            vec![TestIntegrationEvent]
-        }
-    }
-
     // Test integration event
+    #[allow(dead_code)]
     #[derive(Debug, Clone)]
     struct TestIntegrationEvent;
 
@@ -374,7 +368,6 @@ mod tests {
         type ID = TestId;
         type Command = TestCommand;
         type DomainEvent = TestEvent;
-        type IntegrationEvent = TestIntegrationEvent;
         type Error = TestError;
 
         fn init(id: AggregateId<Self::ID>) -> Self {
@@ -418,7 +411,7 @@ mod tests {
             ),
         ];
 
-        let result = store.persist(&events, &[], None).await;
+        let result = store.persist(&events, None, None).await;
         assert!(result.is_ok());
 
         // Test streaming events
@@ -470,7 +463,7 @@ mod tests {
             json!({"test": true}),
         )];
 
-        store.persist(&events, &[], None).await.unwrap();
+        store.persist(&events, None, None).await.unwrap();
 
         // Test inverted index functionality
         store.commit("agg-1", "type:test").await.unwrap();
@@ -487,7 +480,7 @@ mod tests {
             version: 1,
         };
 
-        store.persist(&[], &[], Some(&snapshot)).await.unwrap();
+        store.persist(&[], None, Some(&snapshot)).await.unwrap();
         let retrieved = store.get_snapshot::<TestAggregate>("agg-1").await.unwrap();
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().version, 1);
@@ -526,7 +519,7 @@ mod tests {
             ),
         ];
 
-        let result = store.persist(&[], &integration_events, None).await;
+        let result = store.persist(&[], Some(&integration_events), None).await;
         assert!(result.is_ok());
 
         // Verify integration events were stored

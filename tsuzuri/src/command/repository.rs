@@ -3,7 +3,7 @@ use crate::{
     domain_event::{DomainEvent, SerializedDomainEvent},
     event::{Envelope, SequenceSelect},
     event_store::EventStore,
-    integration_event::{IntegrationEvent, IntoIntegrationEvents, SerializedIntegrationEvent},
+    integration_event::SerializedIntegrationEvent,
     inverted_index_store::InvertedIndexStore,
     persist::PersistenceError,
     serde::Serde,
@@ -56,46 +56,38 @@ where
     async fn commit(
         &self,
         versioned_aggregate: &VersionedAggregate<T>,
-        events: Vec<Envelope<T::DomainEvent>>,
+        domain_events: Vec<Envelope<T::DomainEvent>>,
+        integration_events: Option<Vec<SerializedIntegrationEvent>>,
     ) -> Result<(), PersistenceError>;
 }
 
 #[derive(Debug)]
-pub struct EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
+pub struct EventSourced<T, S, AggSerde, DEvtSerde>
 where
     T: AggregateRoot,
     S: EventStore + InvertedIndexStore,
     AggSerde: Serde<T>,
     DEvtSerde: Serde<T::DomainEvent>,
-    IEvtSerde: Serde<T::IntegrationEvent>,
 {
     pub store: S,
     pub aggregate_serde: AggSerde,
     pub domain_event_serde: DEvtSerde,
-    pub integration_event_serde: IEvtSerde,
     pub aggregate: PhantomData<T>,
     pub concurrent_limit: usize,
 }
 
-impl<T, S, AggSerde, DEvtSerde, IEvtSerde> EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
+impl<T, S, AggSerde, DEvtSerde> EventSourced<T, S, AggSerde, DEvtSerde>
 where
     T: AggregateRoot,
     S: EventStore + InvertedIndexStore,
     AggSerde: Serde<T>,
     DEvtSerde: Serde<T::DomainEvent>,
-    IEvtSerde: Serde<T::IntegrationEvent>,
 {
-    pub fn new(
-        store: S,
-        aggregate_serde: AggSerde,
-        domain_event_serde: DEvtSerde,
-        integration_event_serde: IEvtSerde,
-    ) -> Self {
+    pub fn new(store: S, aggregate_serde: AggSerde, domain_event_serde: DEvtSerde) -> Self {
         Self {
             store,
             aggregate_serde,
             domain_event_serde,
-            integration_event_serde,
             aggregate: PhantomData,
             concurrent_limit: 10,
         }
@@ -110,13 +102,12 @@ where
         &self,
         versioned_aggregate: &VersionedAggregate<T>,
         events: Vec<Envelope<T::DomainEvent>>,
-    ) -> Result<(Vec<SerializedDomainEvent>, Vec<SerializedIntegrationEvent>), PersistenceError> {
+    ) -> Result<Vec<SerializedDomainEvent>, PersistenceError> {
         let aggregate_id = versioned_aggregate.id().to_string();
         let aggregate_type = T::TYPE.to_string();
         let initial_seq_nr = versioned_aggregate.seq_nr();
 
         let mut serialized_events = Vec::with_capacity(events.len());
-        let mut serialized_integration_events = Vec::new();
 
         for (index, event) in events.into_iter().enumerate() {
             let seq_nr = initial_seq_nr.saturating_add(index + 1);
@@ -124,13 +115,9 @@ where
             let serialized_domain_event =
                 self.serialize_domain_event(&event.message, &aggregate_id, &aggregate_type, seq_nr, event.metadata)?;
             serialized_events.push(serialized_domain_event);
-
-            let integration_events =
-                self.serialize_integration_events(event.message, &aggregate_id, &aggregate_type)?;
-            serialized_integration_events.extend(integration_events);
         }
 
-        Ok((serialized_events, serialized_integration_events))
+        Ok(serialized_events)
     }
 
     fn serialize_domain_event(
@@ -150,27 +137,6 @@ where
             self.domain_event_serde.serialize(domain_event)?,
             serde_json::to_value(metadata)?,
         ))
-    }
-
-    fn serialize_integration_events(
-        &self,
-        domain_event: T::DomainEvent,
-        aggregate_id: &str,
-        aggregate_type: &str,
-    ) -> Result<Vec<SerializedIntegrationEvent>, PersistenceError> {
-        domain_event
-            .into_integration_events()
-            .into_iter()
-            .map(|integration_event| {
-                Ok(SerializedIntegrationEvent::new(
-                    integration_event.id().to_string(),
-                    aggregate_id.to_string(),
-                    aggregate_type.to_string(),
-                    integration_event.event_type().to_string(),
-                    self.integration_event_serde.serialize(&integration_event)?,
-                ))
-            })
-            .collect()
     }
 
     async fn prepare_snapshot_if_needed(
@@ -204,13 +170,12 @@ where
 }
 
 #[async_trait]
-impl<T, S, AggSerde, DEvtSerde, IEvtSerde> AggregateLoader<T> for EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
+impl<T, S, AggSerde, DEvtSerde> AggregateLoader<T> for EventSourced<T, S, AggSerde, DEvtSerde>
 where
     T: AggregateRoot,
     S: EventStore + InvertedIndexStore,
     AggSerde: Serde<T> + 'static,
     DEvtSerde: Serde<T::DomainEvent> + 'static,
-    IEvtSerde: Serde<T::IntegrationEvent> + 'static,
 {
     async fn load_aggregate(&self, id: &AggregateId<T::ID>) -> Result<VersionedAggregate<T>, PersistenceError> {
         let (aggregate, version, seq_nr) = match self.store.get_snapshot::<T>(&id.to_string()).await {
@@ -248,13 +213,12 @@ where
 }
 
 #[async_trait]
-impl<T, S, AggSerde, DEvtSerde, IEvtSerde> AggregatesLoader<T> for EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
+impl<T, S, AggSerde, DEvtSerde> AggregatesLoader<T> for EventSourced<T, S, AggSerde, DEvtSerde>
 where
     T: AggregateRoot,
     S: EventStore + InvertedIndexStore,
     AggSerde: Serde<T> + 'static,
     DEvtSerde: Serde<T::DomainEvent> + 'static,
-    IEvtSerde: Serde<T::IntegrationEvent> + 'static,
 {
     async fn load_aggregates(&self, keyword: &str) -> Result<Vec<VersionedAggregate<T>>, PersistenceError> {
         let aggregate_ids = self.store.get_aggregate_ids(keyword).await?;
@@ -310,27 +274,28 @@ where
     }
 }
 
+// This store follows the Outbox pattern; therefore, the Repository is responsible for
+// persisting both DomainEvents and IntegrationEvents.
 #[async_trait]
-impl<T, S, AggSerde, DEvtSerde, IEvtSerde> AggregateCommiter<T> for EventSourced<T, S, AggSerde, DEvtSerde, IEvtSerde>
+impl<T, S, AggSerde, DEvtSerde> AggregateCommiter<T> for EventSourced<T, S, AggSerde, DEvtSerde>
 where
     T: AggregateRoot,
     S: EventStore + InvertedIndexStore,
     AggSerde: Serde<T> + 'static,
     DEvtSerde: Serde<T::DomainEvent> + 'static,
-    IEvtSerde: Serde<T::IntegrationEvent> + 'static,
 {
     async fn commit(
         &self,
         versioned_aggregate: &VersionedAggregate<T>,
-        events: Vec<Envelope<T::DomainEvent>>,
+        domain_events: Vec<Envelope<T::DomainEvent>>,
+        integration_events: Option<Vec<SerializedIntegrationEvent>>,
     ) -> Result<(), PersistenceError> {
-        let (serialized_domain_events, serialized_integration_events) =
-            self.prepare_events(versioned_aggregate, events).await?;
+        let serialized_domain_events = self.prepare_events(versioned_aggregate, domain_events).await?;
         let serialized_snapshot = self.prepare_snapshot_if_needed(versioned_aggregate).await?;
         self.store
             .persist(
                 &serialized_domain_events,
-                serialized_integration_events.as_ref(),
+                integration_events.as_ref().map(|v| &**v),
                 serialized_snapshot.as_ref(),
             )
             .await?;

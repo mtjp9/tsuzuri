@@ -2,18 +2,16 @@ use crate::{
     aggregate_id::{AggregateId, HasIdPrefix},
     command::Command,
     domain_event::DomainEvent,
-    integration_event::{IntegrationEvent, IntoIntegrationEvents},
 };
 use std::fmt;
 
 /// Trait that aggregates must implement to provide their ID prefix
-/// and handle commands, domain events, and integration events.
+/// and handle commands and domain events.
 pub trait AggregateRoot: fmt::Debug + Send + Sync + 'static {
     const TYPE: &'static str;
     type ID: HasIdPrefix;
     type Command: Command;
-    type DomainEvent: DomainEvent + IntoIntegrationEvents<IntegrationEvent = Self::IntegrationEvent>;
-    type IntegrationEvent: IntegrationEvent;
+    type DomainEvent: DomainEvent;
     type Error: std::error::Error;
 
     /// Initializes a new aggregate with the given ID.
@@ -32,7 +30,7 @@ pub trait AggregateRoot: fmt::Debug + Send + Sync + 'static {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{event_id::EventIdType, integration_event, message, test::TestFramework};
+    use crate::{event_id::EventIdType, message, test::TestFramework};
     use std::sync::Arc;
 
     // Test ID types
@@ -166,32 +164,6 @@ mod tests {
         }
     }
 
-    impl integration_event::IntoIntegrationEvents for OrderEvent {
-        type IntegrationEvent = OrderIntegrationEvent;
-        type IntoIter = Vec<OrderIntegrationEvent>;
-
-        fn into_integration_events(self) -> Self::IntoIter {
-            match self {
-                OrderEvent::Created {
-                    user_id, total_amount, ..
-                } => {
-                    vec![OrderIntegrationEvent::OrderCreatedForNotification {
-                        order_id: AggregateId::<OrderId>::new(),
-                        user_id,
-                        total_amount,
-                    }]
-                }
-                OrderEvent::Shipped { .. } => {
-                    vec![OrderIntegrationEvent::OrderShippedForTracking {
-                        order_id: AggregateId::<OrderId>::new(),
-                        tracking_number: "TRACK123456".to_string(),
-                    }]
-                }
-                _ => vec![],
-            }
-        }
-    }
-
     #[derive(Debug, Clone, PartialEq)]
     #[allow(dead_code)]
     enum UserEvent {
@@ -225,94 +197,6 @@ mod tests {
             match self {
                 Self::Created { .. } => "UserCreated",
                 Self::EmailUpdated { .. } => "UserEmailUpdated",
-            }
-        }
-    }
-
-    impl integration_event::IntoIntegrationEvents for UserEvent {
-        type IntegrationEvent = UserIntegrationEvent;
-        type IntoIter = Vec<UserIntegrationEvent>;
-
-        fn into_integration_events(self) -> Self::IntoIter {
-            match self {
-                UserEvent::Created { name: _, email, .. } => {
-                    vec![UserIntegrationEvent::UserRegisteredForWelcome {
-                        user_id: AggregateId::<UserId>::new(),
-                        email,
-                    }]
-                }
-                UserEvent::EmailUpdated { new_email, .. } => {
-                    vec![UserIntegrationEvent::EmailChangedForVerification {
-                        user_id: AggregateId::<UserId>::new(),
-                        new_email,
-                    }]
-                }
-            }
-        }
-    }
-
-    // Integration Events
-    #[derive(Debug, Clone)]
-    #[allow(dead_code)]
-    enum OrderIntegrationEvent {
-        OrderCreatedForNotification {
-            order_id: AggregateId<OrderId>,
-            user_id: AggregateId<UserId>,
-            total_amount: u64,
-        },
-        OrderShippedForTracking {
-            order_id: AggregateId<OrderId>,
-            tracking_number: String,
-        },
-    }
-
-    impl message::Message for OrderIntegrationEvent {
-        fn name(&self) -> &'static str {
-            "OrderIntegrationEvent"
-        }
-    }
-
-    impl IntegrationEvent for OrderIntegrationEvent {
-        fn id(&self) -> String {
-            ulid::Ulid::new().to_string()
-        }
-
-        fn event_type(&self) -> &'static str {
-            match self {
-                Self::OrderCreatedForNotification { .. } => "order.created.for_notification",
-                Self::OrderShippedForTracking { .. } => "order.shipped.for_tracking",
-            }
-        }
-    }
-
-    #[derive(Debug, Clone)]
-    #[allow(dead_code)]
-    enum UserIntegrationEvent {
-        UserRegisteredForWelcome {
-            user_id: AggregateId<UserId>,
-            email: String,
-        },
-        EmailChangedForVerification {
-            user_id: AggregateId<UserId>,
-            new_email: String,
-        },
-    }
-
-    impl message::Message for UserIntegrationEvent {
-        fn name(&self) -> &'static str {
-            "UserIntegrationEvent"
-        }
-    }
-
-    impl IntegrationEvent for UserIntegrationEvent {
-        fn id(&self) -> String {
-            ulid::Ulid::new().to_string()
-        }
-
-        fn event_type(&self) -> &'static str {
-            match self {
-                Self::UserRegisteredForWelcome { .. } => "user.registered.for_welcome",
-                Self::EmailChangedForVerification { .. } => "email.changed.for_verification",
             }
         }
     }
@@ -359,7 +243,6 @@ mod tests {
         type ID = OrderId;
         type Command = OrderCommand;
         type DomainEvent = OrderEvent;
-        type IntegrationEvent = OrderIntegrationEvent;
         type Error = OrderError;
 
         fn init(id: AggregateId<Self::ID>) -> Self {
@@ -444,7 +327,6 @@ mod tests {
         type ID = UserId;
         type Command = UserCommand;
         type DomainEvent = UserEvent;
-        type IntegrationEvent = UserIntegrationEvent;
         type Error = UserError;
 
         fn init(id: AggregateId<Self::ID>) -> Self {
@@ -790,88 +672,11 @@ mod tests {
     fn test_command_and_event_traits() {
         fn assert_command<T: Command>() {}
         fn assert_domain_event<T: DomainEvent>() {}
-        fn assert_integration_event<T: IntegrationEvent>() {}
 
         assert_command::<OrderCommand>();
         assert_command::<UserCommand>();
         assert_domain_event::<OrderEvent>();
         assert_domain_event::<UserEvent>();
-        assert_integration_event::<OrderIntegrationEvent>();
-        assert_integration_event::<UserIntegrationEvent>();
-    }
-
-    #[test]
-    fn test_integration_event_creation() {
-        // Test Order integration events
-        let order_id = AggregateId::<OrderId>::new();
-        let user_id = AggregateId::<UserId>::new();
-
-        let order_created_event = OrderIntegrationEvent::OrderCreatedForNotification {
-            order_id,
-            user_id,
-            total_amount: 50000,
-        };
-
-        match order_created_event {
-            OrderIntegrationEvent::OrderCreatedForNotification {
-                order_id: oid,
-                user_id: uid,
-                total_amount,
-            } => {
-                assert_eq!(oid, order_id);
-                assert_eq!(uid, user_id);
-                assert_eq!(total_amount, 50000);
-            }
-            _ => panic!("Unexpected event"),
-        }
-
-        // Test User integration events
-        let user_id = AggregateId::<UserId>::new();
-        let email = "test@example.com".to_string();
-
-        let user_registered_event = UserIntegrationEvent::UserRegisteredForWelcome {
-            user_id,
-            email: email.clone(),
-        };
-
-        match user_registered_event {
-            UserIntegrationEvent::UserRegisteredForWelcome { user_id: uid, email: e } => {
-                assert_eq!(uid, user_id);
-                assert_eq!(e, email);
-            }
-            _ => panic!("Unexpected event"),
-        }
-    }
-
-    #[test]
-    fn test_integration_event_flow() {
-        // Simulate a complete flow with domain and integration events
-        let order_id = AggregateId::<OrderId>::new();
-        let _user_id = AggregateId::<UserId>::new();
-
-        // Domain event
-        let domain_event = OrderEvent::Shipped { id: EventIdType::new() };
-
-        // Corresponding integration event
-        let integration_event = OrderIntegrationEvent::OrderShippedForTracking {
-            order_id,
-            tracking_number: "TRACK123456".to_string(),
-        };
-
-        // Verify they can coexist in the same context
-        match (&domain_event, &integration_event) {
-            (
-                OrderEvent::Shipped { id: _ },
-                OrderIntegrationEvent::OrderShippedForTracking {
-                    order_id: oid,
-                    tracking_number,
-                },
-            ) => {
-                assert_eq!(oid, &order_id);
-                assert_eq!(tracking_number, "TRACK123456");
-            }
-            _ => panic!("Unexpected event combination"),
-        }
     }
 
     #[test]
