@@ -4,10 +4,7 @@ use crate::projection::helpers::{extract_binary_attribute, extract_string_attrib
 use aws_lambda_events::kinesis::KinesisEvent;
 use lambda_runtime::LambdaEvent;
 
-pub async fn process_kinesis_lambda_event(
-    router: &ProcessorBasedEventRouter,
-    event: LambdaEvent<KinesisEvent>,
-) -> Result<()> {
+pub async fn process_event(router: &ProcessorBasedEventRouter, event: LambdaEvent<KinesisEvent>) -> Result<()> {
     for record in event.payload.records {
         process_single_record(router, &record.kinesis.data).await?;
     }
@@ -227,7 +224,7 @@ mod tests {
 
         let lambda_event = create_test_lambda_event(records);
 
-        let result = process_kinesis_lambda_event(&router, lambda_event).await;
+        let result = process_event(&router, lambda_event).await;
         assert!(result.is_ok());
 
         // Verify both records were processed
@@ -254,7 +251,7 @@ mod tests {
         let records = vec![create_kinesis_record(stream_data)];
         let lambda_event = create_test_lambda_event(records);
 
-        let result = process_kinesis_lambda_event(&router, lambda_event).await;
+        let result = process_event(&router, lambda_event).await;
         assert!(result.is_err());
     }
 }

@@ -5,6 +5,9 @@ pub enum StreamProcessorError {
     #[error("Kinesis Data Streams error: {0}")]
     KinesisDataStreams(String),
 
+    #[error("DynamoDB Streams error: {0}")]
+    DynamoDbStreams(String),
+
     #[error("Tsuzuri projection error: {0}")]
     Projection(#[from] ProjectionError),
 
