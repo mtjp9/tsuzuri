@@ -4,8 +4,8 @@ use crate::{
 };
 use std::fmt;
 
-pub mod event_integration_adapter;
 pub mod handler;
+pub mod integration_event_adapter;
 pub mod repository;
 
 #[allow(dead_code)]
