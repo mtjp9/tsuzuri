@@ -295,7 +295,7 @@ where
         self.store
             .persist(
                 &serialized_domain_events,
-                integration_events.as_ref().map(|v| &**v),
+                integration_events.as_deref(),
                 serialized_snapshot.as_ref(),
             )
             .await?;

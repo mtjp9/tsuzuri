@@ -384,10 +384,10 @@ impl LocalDebugProcessor {
                 println!("Sequence Number: {seq}");
             }
             if let Some(keys) = &dynamodb.keys {
-                println!("Keys: {:?}", keys);
+                println!("Keys: {keys:?}");
             }
             if let Some(size) = dynamodb.size_bytes {
-                println!("Size: {} bytes", size);
+                println!("Size: {size} bytes");
             }
         }
 
