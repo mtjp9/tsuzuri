@@ -546,15 +546,13 @@ impl Persister for DynamoDB {
     async fn persist(
         &self,
         domain_events: &[SerializedDomainEvent],
-        integration_events: &[SerializedIntegrationEvent],
+        integration_events: Option<&[SerializedIntegrationEvent]>,
         snapshot_update: Option<&PersistedSnapshot>,
     ) -> Result<(), PersistenceError> {
+        let int_events = integration_events.unwrap_or(&[]);
         match snapshot_update {
-            None => self.insert_events(domain_events, integration_events).await?,
-            Some(snapshot) => {
-                self.update_snapshot(snapshot, domain_events, integration_events)
-                    .await?
-            }
+            None => self.insert_events(domain_events, int_events).await?,
+            Some(snapshot) => self.update_snapshot(snapshot, domain_events, int_events).await?,
         };
         Ok(())
     }

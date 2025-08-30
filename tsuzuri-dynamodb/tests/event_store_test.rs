@@ -51,7 +51,7 @@ async fn test_persist_and_stream_domain_events() {
 
     // Persist events
     store
-        .persist(&domain_events, &[], None)
+        .persist(&domain_events, None, None)
         .await
         .expect("Failed to persist events");
 
@@ -114,7 +114,7 @@ async fn test_persist_with_integration_events() {
 
     // Persist both domain and integration events
     store
-        .persist(&[domain_event], &[serialized_integration], None)
+        .persist(&[domain_event], Some(&[serialized_integration]), None)
         .await
         .expect("Failed to persist events");
 
@@ -163,7 +163,7 @@ async fn test_snapshot_create_and_retrieve() {
 
     // Persist event with snapshot
     store
-        .persist(&[domain_event], &[], Some(&snapshot))
+        .persist(&[domain_event], None, Some(&snapshot))
         .await
         .expect("Failed to persist with snapshot");
 
@@ -214,12 +214,12 @@ async fn test_concurrent_event_persistence() {
 
     // Persist first event
     store
-        .persist(std::slice::from_ref(&event1), &[], None)
+        .persist(std::slice::from_ref(&event1), None, None)
         .await
         .expect("Failed to persist first event");
 
     // Try to persist same sequence number again (should fail)
-    let result = store.persist(&[event1], &[], None).await;
+    let result = store.persist(&[event1], None, None).await;
 
     assert!(result.is_err(), "Should fail when persisting duplicate sequence number");
 }
@@ -275,7 +275,7 @@ async fn test_snapshot_update() {
 
     // Persist first snapshot
     store
-        .persist(&[event1], &[], Some(&snapshot1))
+        .persist(&[event1], None, Some(&snapshot1))
         .await
         .expect("Failed to persist first snapshot");
 
@@ -307,7 +307,7 @@ async fn test_snapshot_update() {
 
     // Persist updated snapshot
     store
-        .persist(&[event2], &[], Some(&snapshot2))
+        .persist(&[event2], None, Some(&snapshot2))
         .await
         .expect("Failed to persist updated snapshot");
 

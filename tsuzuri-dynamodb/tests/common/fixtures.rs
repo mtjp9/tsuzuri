@@ -3,7 +3,7 @@ use tsuzuri::{
     aggregate_id::{AggregateId, HasIdPrefix},
     command::Command,
     domain_event::DomainEvent,
-    integration_event::{IntegrationEvent, IntoIntegrationEvents},
+    integration_event::IntegrationEvent,
     message::Message,
     AggregateRoot, EventId,
 };
@@ -89,27 +89,10 @@ impl DomainEvent for TestDomainEvent {
     }
 }
 
-impl IntoIntegrationEvents for TestDomainEvent {
-    type IntegrationEvent = TestIntegrationEvent;
-    type IntoIter = std::vec::IntoIter<Self::IntegrationEvent>;
-
-    fn into_integration_events(self) -> Self::IntoIter {
-        match self {
-            TestDomainEvent::Created(e) => vec![TestIntegrationEvent {
-                aggregate_id: e.id,
-                message: format!("Aggregate created: {}", e.name),
-            }],
-            TestDomainEvent::Updated(_) => vec![],
-        }
-        .into_iter()
-    }
-}
-
 impl AggregateRoot for TestAggregate {
     type ID = TestId;
     type Command = TestCommand;
     type DomainEvent = TestDomainEvent;
-    type IntegrationEvent = TestIntegrationEvent;
     type Error = TestError;
     const TYPE: &'static str = "TestAggregate";
 

@@ -16,7 +16,7 @@ license = "MIT OR Apache-2.0"
 rust-version = { workspace = true }
 
 [dependencies]
-tsuzuri = { path = "../tsuzuri", version = "0.1.2" }
+tsuzuri = { path = "../tsuzuri" }
 tower = { version = "0.5" }
 futures = { version = "0.3.31" }
 async-trait = { version = "0.1.88" }
