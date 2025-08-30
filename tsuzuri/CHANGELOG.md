@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.283] - 2025-08-30
+
+### Changed
+
+- **BREAKING**: Decoupled `IntegrationEvent` from `AggregateRoot` and `DomainEvent` traits
+  - Removed `IntegrationEvent` type from `AggregateRoot` trait
+  - Removed `IntoIntegrationEvents` trait and its implementations
+  - Moved `IntegrationEvent` handling to a separate adapter pattern
+  - Added new `event_integration_adapter` module for decoupled event conversion
+  - Updated `Repository` to accept optional pre-serialized integration events
+  - Simplified `EventSourced` repository by removing integration event serde dependency
+
 ## [0.1.282] - 2025-08-17
 
 ### Changed

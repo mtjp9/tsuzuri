@@ -1,6 +1,6 @@
 [package]
 name = "tsuzuri-dynamodb"
-version = "0.1.260"
+version = "0.1.261"
 categories = ["database", "data-structures", "development-tools"]
 keywords = ["dynamodb", "aws", "database"]
 authors = [
@@ -16,7 +16,7 @@ license = "MIT OR Apache-2.0"
 rust-version = { workspace = true }
 
 [dependencies]
-tsuzuri = { path = "../tsuzuri" }
+tsuzuri = { path = "../tsuzuri", version = ">=0.1.283" }
 tower = { version = "0.5" }
 futures = { version = "0.3.31" }
 async-trait = { version = "0.1.88" }
