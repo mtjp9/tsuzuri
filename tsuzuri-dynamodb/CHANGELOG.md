@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.260] - 2025-08-30
+
+### Added
+
+- DynamoDB Streams support for event projections
+  - DynamoDB Streams processor modules for Lambda and local debugging
+  - Local DynamoDB Streams debugger with metrics and filtering capabilities
+  - DynamoDbStreams error variant to StreamProcessorError
+
+### Changed
+
+- Updated AWS SDK dependencies
+  - aws_lambda_events to 0.18.0
+  - testcontainers to 0.25.0
+- Renamed `kinesis::process_kinesis_lambda_event` to `process_event` for consistency
+
 ## [0.1.255] - 2025-08-17
 
 ### Changed
