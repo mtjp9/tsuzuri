@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.262] - 2025-09-02
+
+### Added
+
+- DynamoDB Streams integration entry points
+  - `integration::dynamodb` module with `lambda::process_event` for AWS Lambda
+  - Unit tests covering Lambda handler event processing
+- Local DynamoDB Streams debugger
+  - `integration::dynamodb::local::LocalDynamoDbStreamsDebugger`
+  - Filtering by event types and pretty-printing of records
+  - Lightweight metrics (counts, rates) and pause/resume controls
+
+### Changed
+
+- Wired new DynamoDB integration module in `integration.rs` and exposed entry points
+- Bumped crate version to `0.1.262` and updated changelog
+- **BREAKING**: Stop re-exporting `kinesis::process_kinesis_lambda_event`; use
+  `integration::dynamodb::lambda::process_event` instead
+
 ## [0.1.261] - 2025-08-30
 
 ### Changed
