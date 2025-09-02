@@ -38,5 +38,8 @@ Cargo.lock
 .vscode
 
 .claude
+CLAUDE.md
+
+AGENTS.md
 
 tmp

@@ -13,9 +13,13 @@ pub fn system_time_to_timestamp(time: SystemTime) -> Result<Timestamp, String> {
         })
 }
 
-/// Convert a `SystemTime` to a `prost_types::Timestamp`.
-pub fn now_timestamp() -> Option<Timestamp> {
-    system_time_to_timestamp(SystemTime::now()).ok()
+/// Get the current time as a `prost_types::Timestamp`.
+/// This function always returns a value.
+pub fn now_timestamp() -> Timestamp {
+    match system_time_to_timestamp(SystemTime::now()) {
+        Ok(ts) => ts,
+        Err(_) => Timestamp { seconds: 0, nanos: 0 },
+    }
 }
 
 /// Convert a `SystemTime` to a `prost_types::Timestamp`.
@@ -68,9 +72,7 @@ mod tests {
         let before = SystemTime::now();
         let timestamp = now_timestamp();
         let after = SystemTime::now();
-
-        assert!(timestamp.is_some());
-        let ts = timestamp.unwrap();
+        let ts = timestamp;
 
         // Verify the timestamp is within the expected range
         let before_duration = before.duration_since(UNIX_EPOCH).unwrap();
@@ -83,7 +85,7 @@ mod tests {
     #[test]
     fn test_days_from_now_timestamp() {
         // Test with 0 days
-        let now = now_timestamp().unwrap();
+        let now = now_timestamp();
         let zero_days = days_from_now_timestamp(0).unwrap();
         assert!(zero_days.seconds >= now.seconds);
         assert!(zero_days.seconds - now.seconds < 1); // Should be within 1 second
