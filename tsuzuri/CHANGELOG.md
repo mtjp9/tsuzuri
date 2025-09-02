@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.285] - 2025-09-02
+
+### Changed
+
+- **BREAKING**: Changed `now_timestamp()` function signature to always return a value
+  - Changed return type from `Option<Timestamp>` to `Timestamp`
+  - Function now returns a zero timestamp `{ seconds: 0, nanos: 0 }` on error instead of `None`
+  - This ensures the function always provides a timestamp value
+
 ## [0.1.284] - 2025-08-30
 
 ### Changed
